@@ -158,7 +158,7 @@ What the stand-in got right and wrong (a handful of claims, not an accuracy meas
 ## Development
 
 ```sh
-uv run pytest                              # 135 tests, no network, no model calls
+uv run pytest                              # 136 tests, no network, no model calls
 uv run python tests/record_fixtures.py     # re-record fixtures (see below)
 ```
 
