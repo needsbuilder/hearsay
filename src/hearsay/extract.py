@@ -18,7 +18,8 @@ from pydantic import ValidationError
 from .llm import ChatModel, LLMError, parse_json_object
 from .models import CLAIM_FIELDS, Claim, ClaimType, ExtractionInfo, RejectedClaim
 
-MAX_CHUNK_CHARS = 2500
+MAX_CHUNK_CHARS = 1200
+MAX_CHUNK_SENTENCES = 8  # small models skip sentences in longer lists
 
 _SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9`\"'(\[*_])")
 _FENCE_LINE = re.compile(r"^\s*(```|~~~)")
@@ -48,13 +49,15 @@ def split_sentences(text: str) -> list[str]:
     return units
 
 
-def chunk_sentences(sentences: list[str], limit: int = MAX_CHUNK_CHARS) -> list[list[int]]:
-    """Group sentence indexes into chunks of at most `limit` characters."""
+def chunk_sentences(
+    sentences: list[str], limit: int = MAX_CHUNK_CHARS, max_sentences: int = MAX_CHUNK_SENTENCES
+) -> list[list[int]]:
+    """Group sentence indexes into chunks of at most `limit` characters and `max_sentences` sentences."""
     chunks: list[list[int]] = []
     current: list[int] = []
     size = 0
     for i, s in enumerate(sentences):
-        if current and size + len(s) > limit:
+        if current and (size + len(s) > limit or len(current) >= max_sentences):
             chunks.append(current)
             current, size = [], 0
         current.append(i)
@@ -67,7 +70,8 @@ def chunk_sentences(sentences: list[str], limit: int = MAX_CHUNK_CHARS) -> list[
 SYSTEM_PROMPT = """You extract checkable claims about third-party facts from text written by a coding agent (pull request descriptions, chat answers, code comments).
 
 Extract a claim when a sentence states a fact about the outside world that a primary source could confirm: a package on PyPI or npm, a release version, a vulnerability (CVE, GHSA), a licence, a deprecation or removal, a documented API parameter, or what a library, language or vendor API does.
-Skip: statements about the author's own work or code ("tests pass", "I refactored X", "this PR adds Y"), opinions, plans, questions and instructions.
+A pinned version or install command (pkg==1.2.3, pkg@1.2.3, "pip install pkg", "added pkg") claims that the package and version exist: extract package_exists or version_exists.
+Skip: statements about the author's own work or code ("tests pass", "I refactored X"), opinions, plans, questions and instructions.
 
 Claim types and the fields each one needs:
 - package_exists: package
@@ -83,7 +87,8 @@ Claim types and the fields each one needs:
 Return a JSON object {"claims": [...]}. Each claim has exactly these keys:
 "type", "sentences" (list of sentence numbers it comes from), "statement" (the claim as one short standalone sentence), "ecosystem" ("pypi", "npm", another registry name, or null), "package", "version", "vulnerability_id", "license", "symbol", "parameter", "since_version", "subject", "negated" (true only if the sentence says the fact is NOT the case).
 Copy names, versions and ids exactly as written in the sentence. Use null for anything the sentence does not say; never guess. The ecosystem may be inferred from context (pip, Python -> "pypi"; npm, Node.js, JavaScript -> "npm").
-Split a sentence that states several facts into several claims. If there are no claims, return {"claims": []}."""
+If the sentence says something is not, no longer or never the case, set "negated": true and keep the statement as the sentence says it.
+Go through every sentence in order. Split a sentence that states several facts into several claims. If there are no claims, return {"claims": []}."""
 
 EXAMPLE_INPUT = """[1] Bumped urllib3 to 2.2.2, which fixes CVE-2024-37891.
 [2] I also cleaned up the retry helper and all tests pass.
@@ -140,6 +145,30 @@ def _license_grounded(license_name: str, sentence: str) -> bool:
 
 GROUNDED_FIELDS = ("package", "version", "vulnerability_id", "parameter", "since_version")
 
+# Registry and advisory checks evaluate the positive form and flip it for
+# negated claims, so a negative statement must carry negated=true.
+_NEGATION = re.compile(r"\b(not|no longer|never|isn't|aren't|wasn't|doesn't|don't|didn't|no)\b|n't\b", re.I)
+_FLIPPED_TYPES = {
+    ClaimType.PACKAGE_EXISTS,
+    ClaimType.VERSION_EXISTS,
+    ClaimType.FIXES_VULNERABILITY,
+    ClaimType.AFFECTED_BY_VULNERABILITY,
+    ClaimType.LICENSE_IS,
+}
+
+
+def _grounding_errors(claim: Claim, source: str) -> list[str]:
+    errors = []
+    for name in GROUNDED_FIELDS:
+        value = getattr(claim, name)
+        if value and not _grounded(value, source):
+            errors.append(f"{name} {value!r} does not appear in the sentence")
+    if claim.symbol and not _symbol_grounded(claim.symbol, source):
+        errors.append(f"symbol {claim.symbol!r} does not appear in the sentence")
+    if claim.license and not _license_grounded(claim.license, source):
+        errors.append(f"license {claim.license!r} does not appear in the sentence")
+    return errors
+
 
 @dataclass
 class ParsedClaims:
@@ -189,17 +218,22 @@ def parse_claims(data: dict, sentences: list[str], index_map: dict[int, int]) ->
         except ValidationError as exc:
             out.rejected.append(RejectedClaim(raw=raw, errors=[e["msg"] + f" ({'.'.join(map(str, e['loc']))})" for e in exc.errors()]))
             continue
+        if claim.type == ClaimType.PACKAGE_EXISTS and claim.version:
+            claim.type = ClaimType.VERSION_EXISTS  # same check, with the version the sentence gives
         missing = claim.missing_fields()
         if missing:
             errors.append(f"{claim.type.value} needs: {', '.join(missing)}")
-        for name in GROUNDED_FIELDS:
-            value = getattr(claim, name)
-            if value and not _grounded(value, source):
-                errors.append(f"{name} {value!r} does not appear in the sentence")
-        if claim.symbol and not _symbol_grounded(claim.symbol, source):
-            errors.append(f"symbol {claim.symbol!r} does not appear in the sentence")
-        if claim.license and not _license_grounded(claim.license, source):
-            errors.append(f"license {claim.license!r} does not appear in the sentence")
+        grounding = _grounding_errors(claim, source)
+        if grounding:
+            # The model may cite the wrong sentence number. If every value it gave
+            # appears in exactly one sentence of this chunk, that is the source.
+            others = [i for i in index_map.values() if not _grounding_errors(claim, sentences[i])]
+            if len(others) == 1:
+                claim.source_sentence = sentences[others[0]]
+                grounding = []
+        errors.extend(grounding)
+        if claim.type in _FLIPPED_TYPES and not claim.negated and _NEGATION.search(claim.statement):
+            errors.append("the statement is negative, so negated must be true")
         if errors:
             out.rejected.append(RejectedClaim(raw=raw, errors=errors))
             continue
@@ -276,9 +310,10 @@ def _extract_chunk(
         {"role": "assistant", "content": reply},
         {
             "role": "user",
-            "content": f"Some of your output was invalid: {problem[:1500]}\n"
-            "Return the complete corrected JSON object. Copy values exactly from the sentences, use null "
-            "when a sentence does not state a value, and drop a claim rather than guess.",
+            "content": f"Some claims were invalid: {problem[:1500]}\n"
+            'Return {"claims": [...]} with corrected versions of only those invalid claims (the valid ones are '
+            "kept). Copy values exactly from the sentences, use null when a sentence does not state a value, "
+            "and leave a claim out rather than guess.",
         },
     ]
     reply2 = llm.complete(model, repair)
@@ -289,4 +324,5 @@ def _extract_chunk(
         return first
     if second.rejected:
         info.errors.append(f"attempt 2 still had {len(second.rejected)} invalid claims; they were dropped")
-    return second
+    kept = first.claims if first else []
+    return ParsedClaims(claims=dedupe(kept + second.claims), rejected=second.rejected)

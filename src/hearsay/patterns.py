@@ -18,7 +18,7 @@ VULN_ID = re.compile(
 )
 VERSION = r"v?\d+(?:\.\d+){1,3}(?:(?:a|b|rc|alpha|beta|pre|dev|post)[.\-]?\d*|-[0-9A-Za-z.\-]+)?"
 NAME = r"@?[A-Za-z0-9][A-Za-z0-9_.\-]*(?:/[A-Za-z0-9_.\-]+)?"
-PKG_VERSION = re.compile(rf"`?(?P<pkg>{NAME})`?(?:==|@|\s+(?:to\s+|version\s+|to\s+version\s+)?)(?P<ver>{VERSION})\b")
+PKG_VERSION = re.compile(rf"`?(?P<pkg>{NAME})`?(?P<sep>==|@|\s+(?:to\s+|version\s+|to\s+version\s+)?)(?P<ver>{VERSION})\b")
 INSTALL = re.compile(
     r"\b(?P<tool>pip3?|uv pip|poetry|npm|pnpm|yarn)\s+(?:install|add|i)\s+(?P<args>[^\n;&|`]+)", re.I
 )
@@ -53,24 +53,35 @@ def _ecosystem_hint(text: str) -> str | None:
     return None
 
 
-def _pairs(sentence: str) -> list[tuple[str, str]]:
+def _pairs(sentence: str, *, pins_only: bool = False) -> list[tuple[str, str]]:
     out = []
     for m in PKG_VERSION.finditer(sentence):
         pkg = m.group("pkg").strip("`")
         if pkg.lower() in NOT_PACKAGES or pkg[0].isdigit():
             continue
+        if pins_only and m.group("sep") not in ("==", "@"):
+            continue
         out.append((pkg, m.group("ver").lstrip("v")))
     return out
 
 
-def extract_with_patterns(text: str) -> tuple[list[Claim], ExtractionInfo]:
+def pinned_claims(text: str) -> list[Claim]:
+    """Only the syntactic, unambiguous cases: install commands and pkg==1.2.3 / pkg@1.2.3 pins.
+
+    Used next to the model extractor as a safety net for claims it skipped.
+    """
+    claims, _ = extract_with_patterns(text, pins_only=True)
+    return claims
+
+
+def extract_with_patterns(text: str, *, pins_only: bool = False) -> tuple[list[Claim], ExtractionInfo]:
     sentences = split_sentences(text)
     doc_hint = _ecosystem_hint(text)
     claims: list[Claim] = []
 
     for s in sentences:
         eco = _ecosystem_hint(s) or doc_hint
-        pairs = _pairs(s)
+        pairs = _pairs(s, pins_only=pins_only)
         used_pairs: set[tuple[str, str]] = set()
 
         for m in INSTALL.finditer(s):
@@ -88,6 +99,13 @@ def extract_with_patterns(text: str) -> tuple[list[Claim], ExtractionInfo]:
                 elif re.fullmatch(NAME, arg):
                     claims.append(_claim(ClaimType.PACKAGE_EXISTS, s, install_eco, package=arg,
                                          statement=f"{arg} is a package on {_reg(install_eco)}."))
+
+        if pins_only:
+            for pkg, ver in pairs:
+                if (pkg, ver) not in used_pairs:
+                    claims.append(_claim(ClaimType.VERSION_EXISTS, s, eco, package=pkg, version=ver,
+                                         statement=f"{pkg} {ver} is a published release."))
+            continue
 
         vulns = [v.upper() for v in VULN_ID.findall(s)]
         if vulns and pairs:
@@ -136,4 +154,4 @@ def _reg(eco: str | None) -> str:
 
 
 def _claim(kind: ClaimType, sentence: str, eco: str | None, *, statement: str, **fields: str) -> Claim:
-    return Claim(type=kind, statement=statement, source_sentence=sentence, ecosystem=eco, **fields)
+    return Claim(type=kind, statement=statement, source_sentence=sentence, ecosystem=eco, origin="pattern", **fields)

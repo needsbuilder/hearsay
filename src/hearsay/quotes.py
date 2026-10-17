@@ -68,3 +68,10 @@ def find_quote(quote: str | None, passages: list[Passage], preferred: int | None
         if problem == "no quote given" or problem.startswith("quote is shorter"):
             return None, problem
     return None, last_problem
+
+
+def display_quote(quote: str | None) -> str | None:
+    """The quote as a reader sees it on the page: link targets dropped, whitespace collapsed."""
+    if quote is None:
+        return None
+    return _SPACE.sub(" ", _MD_LINK.sub(r"\1", quote)).strip()

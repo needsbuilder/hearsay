@@ -82,6 +82,7 @@ class Claim(BaseModel):
     since_version: str | None = None
     subject: str | None = None
     negated: bool = False
+    origin: str = "llm"  # "llm" or "pattern" (install commands and pins found without a model)
 
     def missing_fields(self) -> list[str]:
         missing = []

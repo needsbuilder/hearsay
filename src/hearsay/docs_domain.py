@@ -54,6 +54,14 @@ NODE_BUILTINS = {
     "timers", "tls", "url", "util", "v8", "vm", "worker_threads", "zlib", "test",
 }
 
+# JavaScript built-ins documented on MDN (case-sensitive: Python's json is not JSON).
+JS_GLOBALS = {
+    "Array", "ArrayBuffer", "BigInt", "Date", "Error", "Intl", "JSON", "Map", "Math", "Number", "Object",
+    "Promise", "Proxy", "Reflect", "RegExp", "Set", "String", "Symbol", "WeakMap", "WeakSet", "AbortController",
+    "fetch", "Headers", "Request", "Response", "URL", "URLSearchParams", "structuredClone", "console",
+    "setTimeout", "setInterval", "localStorage", "sessionStorage", "document", "window", "navigator",
+}
+
 CODE_HOSTS = {"github.com", "gitlab.com", "bitbucket.org", "www.github.com"}
 NOT_DOCS = {"pypi.org", "www.npmjs.com", "npmjs.com", "registry.npmjs.org", "pythonhosted.org"}
 
@@ -92,14 +100,25 @@ def _top_module(symbol: str) -> str:
     return re.split(r"[.:(\[ ]", s)[0]
 
 
+def claim_ecosystem(claim: Claim) -> str | None:
+    """The stated ecosystem, or one implied by the subject ("Python", "Node.js")."""
+    for value in (claim.ecosystem, claim.subject):
+        eco = normalize_ecosystem(value)
+        if eco in ("pypi", "npm"):
+            return eco
+    return None
+
+
 def stdlib_domains(claim: Claim) -> tuple[list[str], str] | None:
     if not claim.symbol:
         return None
-    eco = normalize_ecosystem(claim.ecosystem)
+    eco = claim_ecosystem(claim)
     subject = _norm(claim.subject)
     top = _top_module(claim.symbol)
     if top == "node:" or (top in NODE_BUILTINS and (eco == "npm" or subject.startswith("node"))):
         return ["nodejs.org"], f"Node.js built-in module {top!r}"
+    if top in JS_GLOBALS and eco in (None, "npm") and not claim.package:
+        return ["developer.mozilla.org"], f"JavaScript built-in {top!r}"
     if top in PY_STDLIB and eco in (None, "pypi") and not (claim.package and _norm(claim.package) != top):
         return ["docs.python.org"], f"Python standard library module {top!r}"
     return None
@@ -123,7 +142,7 @@ def _pick_url(candidates: list[tuple[str, str]]) -> tuple[str, str] | None:
 
 
 def registry_target(http: Http, claim: Claim) -> DocsTarget | None:
-    eco = normalize_ecosystem(claim.ecosystem)
+    eco = claim_ecosystem(claim)
     package = claim.package
     if not package and claim.symbol and eco in ("pypi", "npm"):
         package = _top_module(claim.symbol)

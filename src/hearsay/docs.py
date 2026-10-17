@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -25,6 +26,17 @@ def docs_query(claim: Claim) -> str:
         since = f" {claim.since_version}" if claim.since_version else ""
         return f"{sym} deprecated{since}"
     return claim.statement[:350]
+
+
+_LANG_SEGMENT = re.compile(
+    r"/(?:projects/)?(de|es|fr|it|ja|ko|pl|pt|pt-br|ru|tr|uk|id|zh|zh-cn|zh-tw|zh_cn|zh_tw)(?:/|$)", re.I
+)
+
+
+def _prefer_english(hits: list) -> list:
+    """Drop translated pages (/de/, /es/3.13/, ...) when untranslated ones exist."""
+    english = [h for h in hits if not _LANG_SEGMENT.search(urlparse(h.url).path)]
+    return english or hits
 
 
 def _on_domain(url: str, domains: list[str]) -> bool:
@@ -57,7 +69,7 @@ def check_docs_claim(ctx: "Context", claim: Claim) -> ClaimResult:
                     claim, f"Tavily found no pages on {', '.join(target.domains)} for {query!r}.",
                     docs_domains=domains, notes=notes,
                 )
-            top = hits[:TOP_PAGES]
+            top = _prefer_english(hits)[:TOP_PAGES]
             extracted, failed = ctx.tavily.extract([h.url for h in top], query)
             texts = {p.url.rstrip("/"): p.text for p in extracted}
             for h in top:

@@ -13,17 +13,20 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from .llm import ChatModel, LLMError, ask_json
 from .models import Claim, DecisionPath, JudgeVote, Passage, Verdict
-from .quotes import find_quote
+from .passages import claim_terms, score
+from .quotes import display_quote, find_quote
 
 RULES = """Verdicts:
 - "supported": an excerpt states the claim, in substance, for the same function, option or API.
-- "contradicted": an excerpt states something that cannot be true together with the claim (for example a different version, the feature is said not to exist or to have been removed, or a complete parameter list that leaves the parameter out).
+- "contradicted": an excerpt states something that cannot be true together with the claim: the same event with a different version, a different kind of change (deprecated is not removed), the feature said not to exist or to be removed, or a complete parameter list that leaves the parameter out.
 - "unverifiable": the excerpts do not settle it. Choose this when in doubt. Do not use outside knowledge.
 
-Return a JSON object with exactly these keys:
-{"reasoning": "<one or two sentences>", "verdict": "supported" | "contradicted" | "unverifiable", "passage": <excerpt number or null>, "quote": "<text copied from that excerpt, or an empty string>"}
+Before deciding, compare every detail of the claim with the excerpt: the exact name, every version number, and the kind of change. A claim is supported only if all of its details match.
 
-The quote must be copied character for character from one excerpt: one contiguous span of 15 to 300 characters, no ellipsis, no paraphrase. A supported or contradicted verdict without such a quote is discarded."""
+Return a JSON object with exactly these keys:
+{"reasoning": "<one or two sentences comparing the claim's details with the excerpt>", "verdict": "supported" | "contradicted" | "unverifiable", "url": "<URL of the excerpt you quote, or null>", "quote": "<text copied from that excerpt, or an empty string>"}
+
+The quote must be copied character for character from one excerpt (never from the claim): one contiguous span of 15 to 300 characters, no ellipsis, no paraphrase. A supported or contradicted verdict without such a quote is discarded."""
 
 JUDGE_SYSTEM = (
     "You check one claim about software against excerpts from its official documentation.\n\n" + RULES
@@ -42,7 +45,7 @@ class JudgeOutput(BaseModel):
 
     reasoning: str = ""
     verdict: Verdict
-    passage: int | None = None
+    url: str | None = None
     quote: str | None = ""
 
     @field_validator("verdict", mode="before")
@@ -57,7 +60,8 @@ def _claim_block(claim: Claim) -> str:
         for name in ("subject", "package", "symbol", "parameter", "version", "since_version")
         if getattr(claim, name)
     ]
-    lines = [f"CLAIM: {claim.statement}", f'Sentence it came from: "{claim.source_sentence}"']
+    # The source sentence is left out on purpose: models tend to quote it back.
+    lines = [f"CLAIM: {claim.statement}"]
     if fields:
         lines.append("Details: " + "; ".join(fields))
     return "\n".join(lines)
@@ -110,10 +114,11 @@ def run_judge(
         reasoning=out.reasoning.strip(),
     )
     if vote.quote:
-        passage, problem = find_quote(vote.quote, passages, out.passage)
+        named = [p.id for p in passages if out.url and p.url.rstrip("/") == out.url.strip().rstrip("/")]
+        passage, problem = find_quote(vote.quote, passages, named[0] if named else None)
         if passage is not None:
             vote.quote_found = True
-            vote.url = passage.url
+            vote.url = passage.url  # where the quote really is, whatever URL the model named
         elif out.verdict != Verdict.UNVERIFIABLE:
             vote.verdict = Verdict.UNVERIFIABLE
             vote.error = f"{problem}; the {out.verdict.value} verdict was discarded"
@@ -148,7 +153,10 @@ def run_jury(
 
     if len(verdicts) == 1:
         verdict = votes[0].verdict
-        backing = next((v for v in votes if v.quote_found and v.verdict == verdict), None)
+        valid = [v for v in votes if v.quote_found and v.verdict == verdict]
+        terms = claim_terms(claim)
+        # The most relevant valid quote backs the verdict (ties: the longer one).
+        backing = max(valid, key=lambda v: (score(v.quote or "", terms), len(v.quote or ""))) if valid else None
         if verdict == Verdict.UNVERIFIABLE:
             discarded = [v for v in votes if v.stated_verdict not in (None, Verdict.UNVERIFIABLE)]
             reason = "The judges found nothing in the passages that settles the claim."
@@ -164,12 +172,13 @@ def run_jury(
             verdict,
             DecisionPath.JURY,
             votes,
-            quote=backing.quote,
+            quote=display_quote(backing.quote),
             url=backing.url,
             reason=f"All {len(votes)} judges agree. {backing.reasoning}".strip(),
         )
 
     adj = run_judge(llm, adjudicator, "adjudicator", adjudicator_messages(claim, passages, votes), passages)
+    decisive = adj.quote_found and adj.verdict != Verdict.UNVERIFIABLE
     reason = f"Judges disagreed ({_summary(votes)}); the adjudicator decided {adj.verdict.value}."
     if adj.reasoning:
         reason += f" {adj.reasoning}"
@@ -180,7 +189,7 @@ def run_jury(
         DecisionPath.ADJUDICATOR,
         votes,
         adjudicator=adj,
-        quote=adj.quote if adj.quote_found else None,
-        url=adj.url if adj.quote_found else None,
+        quote=display_quote(adj.quote) if decisive else None,
+        url=adj.url if decisive else None,
         reason=reason,
     )

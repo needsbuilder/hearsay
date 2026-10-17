@@ -34,7 +34,7 @@ from .models import (
     Usage,
     Verdict,
 )
-from .patterns import extract_with_patterns
+from .patterns import extract_with_patterns, pinned_claims
 from .tavily import TavilyClient
 from .versions import VersionError, normalize_ecosystem
 
@@ -176,10 +176,31 @@ def check(
         assert ctx.settings.extract_model
         ctx.say(f"extracting claims with {ctx.settings.extract_model}")
         claims, info = extract_claims(ctx.llm, ctx.settings.extract_model, text)
+        claims = add_missed_pins(claims, text)
     else:
         claims, info = extract_with_patterns(text)
     ctx.say(f"{len(claims)} claims")
     return check_claims(claims, context=ctx, extraction=info)
+
+
+def _pkg_key(name: str | None) -> str:
+    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
+
+
+def add_missed_pins(claims: list[Claim], text: str) -> list[Claim]:
+    """Add install-command and pin claims (pkg==1.2.3) the model did not extract."""
+    covered = {(_pkg_key(c.package), (c.version or "").lower()) for c in claims if c.package}
+    covered_pkgs = {p for p, _ in covered}
+    out = list(claims)
+    for pin in pinned_claims(text):
+        key = (_pkg_key(pin.package), (pin.version or "").lower())
+        if key in covered or (not pin.version and key[0] in covered_pkgs):
+            continue
+        covered.add(key)
+        out.append(pin)
+    for i, c in enumerate(out, 1):
+        c.id = f"c{i}"
+    return out
 
 
 def stderr_progress(message: str) -> None:
