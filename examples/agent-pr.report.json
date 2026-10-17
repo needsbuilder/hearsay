@@ -97,7 +97,7 @@
       "docs_domains": [],
       "evidence": [],
       "notes": [
-        "OSV also links GHSA-r5fr-rjxr-66jc (published 2026-04-01, aliases CVE-2021-23337, CVE-2026-4800, GHSA-35jh-r3h4-6jhm) to CVE-2021-23337, and by that record lodash 4.17.21 is affected: [{\"introduced\": \"4.0.0\"}, {\"fixed\": \"4.18.0\"}]. Hearsay follows GHSA-35jh-r3h4-6jhm, the record for this id or the earliest one.",
+        "GHSA-r5fr-rjxr-66jc is not used: OSV lists CVE-2021-23337 among its merged aliases, but GitHub wrote it for a CVE published at NVD on 2026-03-31, and CVE-2021-23337 was published on 2021-02-15.",
         "The claim is negated, so the positive finding (contradicted) becomes supported."
       ]
     },
@@ -649,31 +649,31 @@
       "path": "jury",
       "source_url": null,
       "quote": null,
-      "reason": "1 of 2 judges answered supported but their quotes were not in the evidence, so the verdict is unverifiable.",
+      "reason": "2 of 2 judges answered supported but their quotes were not in the evidence or not about the claim's symbol, so the verdict is unverifiable.",
       "judges": [
         {
           "model": "qwen2.5:3b",
           "role": "judge",
           "verdict": "unverifiable",
-          "stated_verdict": "unverifiable",
-          "quote": null,
+          "stated_verdict": "supported",
+          "quote": "The request field of the Events object now specifies both the request ID and idempotency key",
           "quote_found": false,
           "anchored": null,
           "url": null,
-          "reasoning": "The excerpts mention idempotency keys and their use in Stripe API requests, including refunds. However, they do not specifically state that refunds accept an idempotency key.",
-          "error": null
+          "reasoning": "Excerpt [1] mentions the request field now includes both a request ID and an idempotency key, which aligns with the claim about Stripe refunds accepting an idempotency key.",
+          "error": "quote does not appear in the evidence; the supported verdict was discarded"
         },
         {
           "model": "qwen2.5:7b",
           "role": "judge",
           "verdict": "unverifiable",
           "stated_verdict": "supported",
-          "quote": "[Refunds](https://docs.stripe.com/api/refunds?api-version=2025-07-30.preview)",
-          "quote_found": false,
-          "anchored": null,
-          "url": null,
-          "reasoning": "The claim states that Stripe refunds accept an idempotency key, which is supported by excerpt [4] for the API version 2025-07-30.preview. The excerpt mentions that all `POST` requests accept idempotency keys, and refunds are a valid POST request.",
-          "error": "quote is shorter than 15 characters; the supported verdict was discarded"
+          "quote": "For API v1, all `POST` requests accept idempotency keys.",
+          "quote_found": true,
+          "anchored": false,
+          "url": "https://docs.stripe.com/idempotency",
+          "reasoning": "The claim states that Stripe refunds accept an idempotency key, which is supported by excerpt [6] stating that all POST requests for API v1 accept idempotency keys, and refunds are typically made via POST requests.",
+          "error": "anchoring: the quoted passage does not name Stripe.refunds; the supported verdict was discarded"
         }
       ],
       "adjudicator": null,
@@ -684,13 +684,14 @@
       "evidence": [
         {
           "id": 1,
-          "url": "https://docs.stripe.com/idempotency",
-          "title": "Idempotent requests | Stripe API Reference",
+          "url": "https://docs.stripe.com/changelog/2017-05-25/events-specify-request-id-idempotency-key",
+          "title": "The request field of the Events object now specifies both the request ID and idempotency key | Stripe Documentation",
           "section": [
-            "Idempotent requests"
+            "The request field of the Events object now specifies both the request ID and idempotency keyBreaking changes",
+            "Impact"
           ],
           "api_heading": null,
-          "text": "A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long. Avoid using sensitive data (for example, email addresses or personal identifiers) as idempotency keys."
+          "text": "Expanding the request property on the `Event` object to include both the request ID and idempotency key lets you access more detailed information about the API request that triggered the event, particularly the idempotency key."
         },
         {
           "id": 2,
@@ -700,10 +701,20 @@
             "Idempotent requests"
           ],
           "api_heading": null,
-          "text": "For API v1, Stripe saves the status code and body of the first request made with a given idempotency key after endpoint execution begins. Retries with the same key return the saved response, including `500` errors. With [API v2](/api-v2-overview#idempotency), retries don’t repeat successful operations. Stripe retries failed or partially failed work to completion when possible and returns an updated response. If a retry can’t succeed, Stripe returns an error explaining why."
+          "text": "A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long. Avoid using sensitive data (for example, email addresses or personal identifiers) as idempotency keys."
         },
         {
           "id": 3,
+          "url": "https://docs.stripe.com/idempotency",
+          "title": "Idempotent requests | Stripe API Reference",
+          "section": [
+            "Idempotent requests"
+          ],
+          "api_heading": null,
+          "text": "For API v1, Stripe saves the status code and body of the first request made with a given idempotency key after endpoint execution begins. Retries with the same key return the saved response, including `500` errors. With [API v2](/api-v2-overview#idempotency), retries don’t repeat successful operations. Stripe retries failed or partially failed work to completion when possible and returns an updated response. If a retry can’t succeed, Stripe returns an error explaining why."
+        },
+        {
+          "id": 4,
           "url": "https://docs.stripe.com/idempotency",
           "title": "Idempotent requests | Stripe API Reference",
           "section": [],
@@ -711,15 +722,18 @@
           "text": "[Payouts](https://docs.stripe.com/api/payouts)\n\n[Refunds](https://docs.stripe.com/api/refunds)\n\n[Confirmation Tokens](https://docs.stripe.com/api/confirmation_tokens)\n\n[Tokens](https://docs.stripe.com/api/tokens)\n\n[Ephemeral Keys](https://docs.stripe.com/api/ephemeral_keys)\n\nPayment Methods\n\n[Payment Methods](https://docs.stripe.com/api/payment_methods)\n\n[Payment Method Configurations](https://docs.stripe.com/api/payment_method_configurations)"
         },
         {
-          "id": 4,
-          "url": "https://docs.stripe.com/api/idempotent_requests?api-version=2025-07-30.preview",
-          "title": "Idempotent requests | Stripe API Reference",
-          "section": [],
+          "id": 5,
+          "url": "https://docs.stripe.com/changelog/2017-05-25/events-specify-request-id-idempotency-key",
+          "title": "The request field of the Events object now specifies both the request ID and idempotency key | Stripe Documentation",
+          "section": [
+            "The request field of the Events object now specifies both the request ID and idempotency keyBreaking changes",
+            "What's new"
+          ],
           "api_heading": null,
-          "text": "[Payouts](https://docs.stripe.com/api/payouts?api-version=2025-07-30.preview)\n\n[Refunds](https://docs.stripe.com/api/refunds?api-version=2025-07-30.preview)\n\n[Confirmation Token](https://docs.stripe.com/api/confirmation_tokens?api-version=2025-07-30.preview)"
+          "text": "Updates the `request` property on the `Event` object to be a hash containing the request ID and the idempotency key. Previously, `request` was just the ID."
         },
         {
-          "id": 5,
+          "id": 6,
           "url": "https://docs.stripe.com/idempotency",
           "title": "Idempotent requests | Stripe API Reference",
           "section": [
@@ -727,14 +741,6 @@
           ],
           "api_heading": null,
           "text": "For API v1, all `POST` requests accept idempotency keys. Don’t send idempotency keys in `GET` and `DELETE` requests because it has no effect. These requests are idempotent by definition."
-        },
-        {
-          "id": 6,
-          "url": "https://docs.stripe.com/idempotency",
-          "title": "Idempotent requests | Stripe API Reference",
-          "section": [],
-          "api_heading": null,
-          "text": "[Account Links](https://docs.stripe.com/api/account_links) [Account Sessions](https://docs.stripe.com/api/account_sessions) [Application Fees](https://docs.stripe.com/api/application_fees) [Application Fee Refunds](https://docs.stripe.com/api/fee_refunds) [Capabilities](https://docs.stripe.com/api/capabilities) [Country Specs](https://docs.stripe.com/api/country_specs) [Balance Settings](https://docs.stripe.com/api/balance-settings) [External Bank Accounts](https://docs.stripe.com/api/external_accounts) [External Account Cards](https://docs.stripe.com/api/external_account_cards) [Persons](https://docs.stripe.com/api/persons) [Top-ups](https://docs.stripe.com/api/topups) [Transfers](https://docs.stripe.com/api/transfers) [Transfer Reversals](https://docs.stripe.com/api/transfer_reversals) [Secrets](https://docs.stripe.com/api/secret_management)"
         }
       ],
       "notes": [
@@ -764,11 +770,11 @@
   },
   "usage": {
     "http_requests": 0,
-    "http_cache_hits": 15,
-    "tavily_calls": 0,
-    "tavily_cache_hits": 8,
-    "llm_calls": 0,
-    "llm_cache_hits": 16
+    "http_cache_hits": 18,
+    "tavily_calls": 1,
+    "tavily_cache_hits": 7,
+    "llm_calls": 2,
+    "llm_cache_hits": 14
   },
   "input_title": null,
   "input_url": null

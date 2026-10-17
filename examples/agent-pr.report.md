@@ -59,7 +59,7 @@ Source: <https://api.osv.dev/v1/vulns/GHSA-35jh-r3h4-6jhm>
 
 > affected[lodash].ranges.events: [{"introduced": "0"}, {"fixed": "4.17.21"}]
 
-- OSV also links GHSA-r5fr-rjxr-66jc (published 2026-04-01, aliases CVE-2021-23337, CVE-2026-4800, GHSA-35jh-r3h4-6jhm) to CVE-2021-23337, and by that record lodash 4.17.21 is affected: [{"introduced": "4.0.0"}, {"fixed": "4.18.0"}]. Hearsay follows GHSA-35jh-r3h4-6jhm, the record for this id or the earliest one.
+- GHSA-r5fr-rjxr-66jc is not used: OSV lists CVE-2021-23337 among its merged aliases, but GitHub wrote it for a CVE published at NVD on 2026-03-31, and CVE-2021-23337 was published on 2021-02-15.
 - The claim is negated, so the positive finding (contradicted) becomes supported.
 
 ### c4. CONTRADICTED: fastapi 0.200.0 is added.
@@ -282,14 +282,15 @@ Claim type `parameter_exists`, decided by **jury**.
 Said in the input:
 > - Stripe refunds accept an idempotency key, so retrying the refund call is safe.
 
-1 of 2 judges answered supported but their quotes were not in the evidence, so the verdict is unverifiable.
+2 of 2 judges answered supported but their quotes were not in the evidence or not about the claim's symbol, so the verdict is unverifiable.
 
 | Judge | Model | Verdict | Stated | Quote found | Anchored |
 |---|---|---|---|---|---|
-| judge 1 | `qwen2.5:3b` | unverifiable | unverifiable | no | - |
-| judge 2 | `qwen2.5:7b` | unverifiable | supported | no | - |
+| judge 1 | `qwen2.5:3b` | unverifiable | supported | no | - |
+| judge 2 | `qwen2.5:7b` | unverifiable | supported | yes | no |
 
-- judge 2: quote is shorter than 15 characters; the supported verdict was discarded
+- judge 1: quote does not appear in the evidence; the supported verdict was discarded
+- judge 2: anchoring: the quoted passage does not name Stripe.refunds; the supported verdict was discarded
 
 Documentation searched: docs.stripe.com, stripe.com.
 
@@ -298,33 +299,33 @@ Documentation searched: docs.stripe.com, stripe.com.
 
 <details><summary>Evidence shown to the jury</summary>
 
-[1] <https://docs.stripe.com/idempotency> (Idempotent requests)
+[1] <https://docs.stripe.com/changelog/2017-05-25/events-specify-request-id-idempotency-key> (The request field of the Events object now specifies both the request ID and idempotency keyBreaking changes > Impact)
 
-> A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long. Avoid using sensitive data (for example, email addresses or personal identifiers) as idempotency keys.
+> Expanding the request property on the `Event` object to include both the request ID and idempotency key lets you access more detailed information about the API request that triggered the event, particularly the idempotency key.
 
 [2] <https://docs.stripe.com/idempotency> (Idempotent requests)
 
+> A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long. Avoid using sensitive data (for example, email addresses or personal identifiers) as idempotency keys.
+
+[3] <https://docs.stripe.com/idempotency> (Idempotent requests)
+
 > For API v1, Stripe saves the status code and body of the first request made with a given idempotency key after endpoint execution begins. Retries with the same key return the saved response, including `500` errors. With [API v2](/api-v2-overview#idempotency), retries don’t repeat successful operations. Stripe retries failed or partially failed work to completion when possible and returns an updated response. If a retry can’t succeed, Stripe returns an error explaining why.
 
-[3] <https://docs.stripe.com/idempotency>
+[4] <https://docs.stripe.com/idempotency>
 
 > [Payouts](https://docs.stripe.com/api/payouts) [Refunds](https://docs.stripe.com/api/refunds) [Confirmation Tokens](https://docs.stripe.com/api/confirmation_tokens) [Tokens](https://docs.stripe.com/api/tokens) [Ephemeral Keys](https://docs.stripe.com/api/ephemeral_keys) Payment Methods [Payment Methods](https://docs.stripe.com/api/payment_methods) [Payment Method Configurations](https://docs.stripe.com/api/payment_method_configurations)
 
-[4] <https://docs.stripe.com/api/idempotent_requests?api-version=2025-07-30.preview>
+[5] <https://docs.stripe.com/changelog/2017-05-25/events-specify-request-id-idempotency-key> (The request field of the Events object now specifies both the request ID and idempotency keyBreaking changes > What's new)
 
-> [Payouts](https://docs.stripe.com/api/payouts?api-version=2025-07-30.preview) [Refunds](https://docs.stripe.com/api/refunds?api-version=2025-07-30.preview) [Confirmation Token](https://docs.stripe.com/api/confirmation_tokens?api-version=2025-07-30.preview)
+> Updates the `request` property on the `Event` object to be a hash containing the request ID and the idempotency key. Previously, `request` was just the ID.
 
-[5] <https://docs.stripe.com/idempotency> (Idempotent requests)
+[6] <https://docs.stripe.com/idempotency> (Idempotent requests)
 
 > For API v1, all `POST` requests accept idempotency keys. Don’t send idempotency keys in `GET` and `DELETE` requests because it has no effect. These requests are idempotent by definition.
-
-[6] <https://docs.stripe.com/idempotency>
-
-> [Account Links](https://docs.stripe.com/api/account_links) [Account Sessions](https://docs.stripe.com/api/account_sessions) [Application Fees](https://docs.stripe.com/api/application_fees) [Application Fee Refunds](https://docs.stripe.com/api/fee_refunds) [Capabilities](https://docs.stripe.com/api/capabilities) [Country Specs](https://docs.stripe.com/api/country_specs) [Balance Settings](https://docs.stripe.com/api/balance-settings) [External Bank Accounts](https://docs.stripe.com/api/external_accounts) [External Account Cards](https://docs.stripe.com/api/external_account_cards) [Persons](https://docs.stripe.com/api/persons) [Top-ups](https://docs.stripe.com/api/topups) [Transfers](https://docs.stripe.com/api/transfers) [Transfer Reversals](https://docs.stripe.com/api/transfer_reversals) [Secrets](https://docs.stripe.com/api/secret_management)
 
 </details>
 
 ---
 Claims extracted by `qwen2.5:7b` from 19 sentences.
 Jury: `qwen2.5:3b`, `qwen2.5:7b`; adjudicator `qwen2.5:7b`.
-Calls this run: 0 HTTP (15 cached), 0 Tavily (8 cached), 0 model (16 cached).
+Calls this run: 0 HTTP (18 cached), 1 Tavily (7 cached), 2 model (14 cached).

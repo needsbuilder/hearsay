@@ -41,13 +41,14 @@ Claims about the agent's own work ("tests pass", "I refactored X") are not Hears
    - Versions are compared with `packaging.version` (PEP 440) for PyPI and a SemVer 2.0.0 implementation for npm, including pre-release ordering.
    - OSV ranges are evaluated as the OSV schema describes: events sorted by version, `introduced` inclusive, `fixed` and `limit` exclusive, `last_affected` inclusive, several introduced/fixed pairs per range.
    - "X fixes CVE" is supported only if X is outside every affected range and at or after a fix; a version older than the bug is contradicted ("it never had the bug, so it does not contain the fix").
-   - OSV merges aliases, so a later advisory can list an older CVE as an alias. The record whose own id was asked for decides, otherwise the earliest published one. Records that disagree are reported in the notes (real example: CVE-2021-23337 in lodash).
+   - Which OSV records describe the claimed vulnerability ("matching"): a record whose own id is the claimed id, and only such records, when there is one. For a claimed CVE, every record that lists it, except a GitHub advisory whose `database_specific.nvd_published_at` (when NVD published the CVE GitHub attached to it) is more than 7 days from the claimed CVE's own publication date. OSV merges aliases transitively, so without this rule lodash's 2021 advisory would count as the advisory for CVE-2026-4800, a 2026 CVE about an incomplete fix. Records without that date evidence (PYSEC and others) are kept.
+   - If the matching records disagree about the claimed version, the verdict is `unverifiable`, and the reason names each record and what it says (real example: Werkzeug 1.0.1 and CVE-2023-46136, where GitHub's record starts at 2.0.0rc1 and PYSEC-2023-221 at 0). Records left out are listed in the notes.
    - Licences: deps.dev's SPDX expression first, then `license_expression`, `license` and classifiers on PyPI, or `license` on npm. "BSD" claimed against "BSD-3-Clause" is supported; "BSD-3-Clause" claimed against the vague classifier "BSD License" is unverifiable; a licence that is only one part of an `AND` expression is unverifiable.
    - Each verdict carries the URL it came from and, as its quote, the exact field and value it relied on, for example `affected[requests].ranges.events: [{"introduced": "2.3.0"}, {"fixed": "2.31.0"}]`.
 3. **Documentation claims: Tavily, scoped to the official docs.** For `parameter_exists`, `api_behavior`, `other_external` and `deprecated` (when no registry field answers it):
    - The official documentation domain comes from, in order: the Python standard library (`docs.python.org`), Node.js built-ins (`nodejs.org`) and JavaScript built-ins (`developer.mozilla.org`); a small curated map of vendors and languages (Stripe, GitHub, MDN, Node.js, TypeScript, React, Django, Go, Rust, PostgreSQL, Docker, Kubernetes, OpenAI, Tavily); the package's registry metadata (PyPI `project_urls` Documentation or Homepage, npm `homepage`).
    - A package whose only link is a code host (GitHub, GitLab) gets its repository page read directly, because restricting a search to `github.com` would let anyone's repository in.
-   - Tavily Search runs with `include_domains` set to that domain. Tavily Extract then reads the top three results as whole pages in Markdown, so the headings survive. Translated pages are skipped when English ones exist.
+   - Tavily Search runs with `include_domains` set to that domain. Tavily Extract then reads the top three results as whole pages in Markdown, so the headings survive. Translated pages are skipped when English ones exist. Before the three Extract slots are filled, results are ordered current documentation first (`docs.python.org/3/` before `/3.4/` or `/2.7/`, `nodejs.org/api/` before `latest-v18.x`), or pages for the claimed version first when the claim names one, and one URL is kept per page (anchors, trailing slashes, `?lang=` and `api-version` variants, `/latest/` and `/master/`, a locale prefix). If only version-specific pages come back, the report says so.
    - Each page is cut into sections by its headings: Markdown headings, and Sphinx definitions such as `classmethod datetime.utcnow()` (Python and Read the Docs pages), which count as the lowest heading level. Every window of text keeps its heading path (for example `File system > fs.rm(path[, options], callback)`) and its nearest API heading.
    - Windows are scored by the claim's terms (identifiers weigh most); windows about the claim's symbol (see anchoring below) rank first. At most six passages and 4,500 characters go to the jury, each shown with its heading path.
    - No official domain found means no search and an `unverifiable` verdict. Hearsay does not fall back to the open web.
@@ -106,7 +107,7 @@ Options (for `check` and `claim`):
 | `--json` / `--markdown` | print the JSON or the Markdown report (Markdown is the default) |
 | `--json-out PATH`, `--md-out PATH` | also write the report to a file |
 | `--evidence` | include the passages the jury read in the Markdown report |
-| `--no-llm` | no model calls: a pattern extractor finds install commands, pins, "X fixes CVE-..." sentences, "licensed under" phrases and npm deprecations, and only registry and advisory checks run |
+| `--no-llm` | no model calls: a pattern extractor finds install commands, pins, "X fixes CVE-..." sentences, "licensed under" phrases and npm deprecations (with negation read from the words right before "fix", "affected", "licensed" or "deprecated": "does not fix", "is no longer affected"), and only registry and advisory checks run |
 | `--env-file PATH` | load settings from a file (repeatable); `.env` in the working directory is loaded automatically |
 | `--refresh` | ignore cached answers (they are fetched again and rewritten) |
 | `--fail-on-contradicted` | exit with status 2 if any claim is contradicted |
@@ -311,7 +312,7 @@ Tavily calls are counted per run. Cached calls are free; once `HEARSAY_TAVILY_MA
 
 What the stand-in got right and wrong (a handful of claims, not an accuracy measurement):
 
-- **Registry and advisory claims (9 across the two inputs, plus 2 version claims in the Dependabot PR): all as expected.** Including: urllib3 1.26.5 does not fix CVE-2023-43804 (fixed in 1.26.17); `fastapi==0.200.0` does not exist; `pydantic-settings-extra` is on neither registry; requests is Apache-2.0, not MIT; lodash 4.17.21 is not affected by CVE-2021-23337 by the original advisory, with a note that a 2026 advisory aliased to the same CVE says otherwise.
+- **Registry and advisory claims (9 across the two inputs, plus 2 version claims in the Dependabot PR): all as expected.** Including: urllib3 1.26.5 does not fix CVE-2023-43804 (fixed in 1.26.17); `fastapi==0.200.0` does not exist; `pydantic-settings-extra` is on neither registry; requests is Apache-2.0, not MIT; lodash 4.17.21 is not affected by CVE-2021-23337 by that CVE's advisory, with a note that the 2026 advisory OSV merges with it was written for another CVE and is not used.
 - **Documentation claims (7), with section-aware passages and anchoring: 5 as expected, 2 unverifiable, none wrong.**
   - As expected: `datetime.utcnow()` deprecated in 3.12 (supported, quote from the `classmethod datetime.utcnow()` definition), "distutils was removed in Python 3.10" (contradicted: "Deprecated since version 3.10, removed in version 3.12."), the GitHub Actions 256-job matrix limit (supported; no symbol, so not anchored), `Array.prototype.at()` with negative indexes (supported), and `fs.rm` supports `recursive` (supported: both judges quoted "`recursive` If true, perform a recursive removal." from the `fs.rm(path[, options], callback)` section).
   - Unverifiable, false claim: "`requests.get` accepts a `max_retries` parameter". One judge answered contradicted without a quote; the passages only describe `max_retries` on `HTTPAdapter`.
@@ -323,7 +324,7 @@ What the stand-in got right and wrong (a handful of claims, not an accuracy meas
 ## Development
 
 ```sh
-uv run pytest                              # 202 tests, no network, no model calls
+uv run pytest                              # 219 tests, no network, no model calls
 uv run python tests/record_fixtures.py     # re-record fixtures (see below)
 ```
 
@@ -338,7 +339,7 @@ Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-mo
 - **Some headings that mention a call are not API sections.** Node's "DEP0147: fs.rmdir(path, { recursive: true })" counts as a heading for `fs.rmdir`. Its advice to use `fs.rm(path, { recursive: true, force: true })` therefore cannot support an `fs.rm` claim.
 - **Whole pages are large.** Extracting whole pages keeps the headings but can be big (Node's `all.html` is 2.5 MB of Markdown). It costs no extra Tavily credits, and the cache stores it once.
 - **Extraction recall** depends on the extractor model; the safety net only covers install commands and pins.
-- **OSV alias merging** means "the advisory for this CVE" is a choice; Hearsay picks the matching or earliest record and reports disagreement rather than resolving it.
+- **OSV alias merging** is undone only for GitHub advisories, which carry the publication date of their own CVE. A merged PYSEC or other record that is really about another CVE still counts as matching; if it disagrees, the verdict is unverifiable rather than wrong.
 - **No ecosystem stated** and a package name that exists on both PyPI and npm makes version and licence claims `unverifiable`.
 - **Old documentation versions.** Tavily can return pages of old releases. For "`json.dumps` accepts a `sort_keys` parameter" it returned the Python 2.7, 3.4 and 3.5 source text pages. (In that run both stand-in judges also quoted an example with its double quotes changed to single quotes, so both quotes were discarded and the claim was unverifiable.)
 - **The demo's limits live in memory.** The daily Tavily cap and the rate limit start again when the process restarts, and a free Render instance restarts after 15 idle minutes. The Tavily key's own monthly limit is the hard stop.
