@@ -1,0 +1,1 @@
+{"namespace": "http", "request": {"method": "GET", "url": "https://pypi.org/pypi/pydantic-settings-extra/json", "params": null, "json": null, "headers": null}, "response": {"status": 404, "data": {"message": "Not Found"}}}

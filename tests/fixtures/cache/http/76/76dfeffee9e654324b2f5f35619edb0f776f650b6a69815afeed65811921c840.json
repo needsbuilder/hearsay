@@ -1,0 +1,1 @@
+{"namespace": "http", "request": {"method": "POST", "url": "https://api.osv.dev/v1/query", "params": null, "json": {"package": {"name": "requests", "ecosystem": "PyPI"}, "version": "2.33.0"}, "headers": null}, "response": {"status": 200, "data": {}, "trimmed": true}}

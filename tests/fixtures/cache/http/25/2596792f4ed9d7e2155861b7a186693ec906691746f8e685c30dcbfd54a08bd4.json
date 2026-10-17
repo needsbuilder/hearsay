@@ -1,0 +1,1 @@
+{"namespace": "http", "request": {"method": "GET", "url": "https://registry.npmjs.org/left-pad-hearsay-nonexistent", "params": null, "json": null, "headers": {"Accept": "application/vnd.npm.install-v1+json"}}, "response": {"status": 404, "data": {"error": "Not found"}}}

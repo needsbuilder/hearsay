@@ -57,25 +57,33 @@ def claim_terms(claim: Claim) -> dict[str, float]:
 
 
 def split_passages(text: str) -> list[str]:
-    """Paragraph-sized pieces of a page, each at most MAX_PASSAGE_CHARS."""
+    """Paragraph-sized pieces of a page, each at most MAX_PASSAGE_CHARS.
+
+    Headings and short lead-in lines stay attached to the paragraph after
+    them; other paragraphs are not packed together, so an unrelated
+    paragraph never rides along with a relevant one.
+    """
     pieces: list[str] = []
     for chunk in re.split(r"\s*\[\.\.\.\]\s*", text):  # Tavily joins ranked chunks with [...]
         paragraphs = [p.strip() for p in re.split(r"\n\s*\n", chunk) if p.strip()]
-        buf = ""
+        lead = ""
         for para in paragraphs:
-            if len(para) > MAX_PASSAGE_CHARS:
-                if buf:
-                    pieces.append(buf)
-                    buf = ""
-                pieces.extend(_split_long(para))
+            if _is_lead_in(para):
+                lead = f"{lead}\n\n{para}" if lead else para
                 continue
-            if buf and len(buf) + len(para) + 2 > MAX_PASSAGE_CHARS:
-                pieces.append(buf)
-                buf = ""
-            buf = f"{buf}\n\n{para}" if buf else para
-        if buf:
-            pieces.append(buf)
+            body = f"{lead}\n\n{para}" if lead else para
+            lead = ""
+            if len(body) > MAX_PASSAGE_CHARS:
+                pieces.extend(_split_long(body))
+            else:
+                pieces.append(body)
+        if lead:
+            pieces.append(lead)
     return [p for p in pieces if len(p) >= 20]
+
+
+def _is_lead_in(para: str) -> bool:
+    return para.startswith("#") or (len(para) < 80 and "\n" not in para)
 
 
 def _split_long(para: str) -> list[str]:

@@ -1,0 +1,1 @@
+{"namespace": "http", "request": {"method": "GET", "url": "https://api.osv.dev/v1/vulns/CVE-2099-0001", "params": null, "json": null, "headers": null}, "response": {"status": 404, "data": {"code": 5, "message": "Vulnerability not found"}}}
