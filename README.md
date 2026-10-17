@@ -46,11 +46,30 @@ Claims about the agent's own work ("tests pass", "I refactored X") are not Hears
 3. **Documentation claims: Tavily, scoped to the official docs.** For `parameter_exists`, `api_behavior`, `other_external` and `deprecated` (when no registry field answers it):
    - The official documentation domain comes from, in order: the Python standard library (`docs.python.org`), Node.js built-ins (`nodejs.org`) and JavaScript built-ins (`developer.mozilla.org`); a small curated map of vendors and languages (Stripe, GitHub, MDN, Node.js, TypeScript, React, Django, Go, Rust, PostgreSQL, Docker, Kubernetes, OpenAI, Tavily); the package's registry metadata (PyPI `project_urls` Documentation or Homepage, npm `homepage`).
    - A package whose only link is a code host (GitHub, GitLab) gets its repository page read directly, because restricting a search to `github.com` would let anyone's repository in.
-   - Tavily Search runs with `include_domains` set to that domain. Tavily Extract then reads the top three results with the claim as its reranking `query`, so only the most relevant chunks of each page come back. Translated pages are skipped when English ones exist.
-   - Hearsay splits those chunks into paragraphs, scores them by the claim's terms (identifiers weigh most) and keeps at most six passages and 4,500 characters for the jury.
+   - Tavily Search runs with `include_domains` set to that domain. Tavily Extract then reads the top three results as whole pages in Markdown, so the headings survive. Translated pages are skipped when English ones exist.
+   - Each page is cut into sections by its headings: Markdown headings, and Sphinx definitions such as `classmethod datetime.utcnow()` (Python and Read the Docs pages), which count as the lowest heading level. Every window of text keeps its heading path (for example `File system > fs.rm(path[, options], callback)`) and its nearest API heading.
+   - Windows are scored by the claim's terms (identifiers weigh most); windows about the claim's symbol (see anchoring below) rank first. At most six passages and 4,500 characters go to the jury, each shown with its heading path.
    - No official domain found means no search and an `unverifiable` verdict. Hearsay does not fall back to the open web.
-4. **The jury (documentation claims only).** Several judge models independently read the claim and the passages and return `supported`, `contradicted` or `unverifiable`, a verbatim quote and the URL. A quote that does not appear in the passages (after normalising Unicode, quotes, dashes, Markdown and whitespace), is shorter than 15 characters or skips text with an ellipsis turns that judge's verdict into `unverifiable`. The URL reported is the passage where the quote really is. If the judges agree, that is the verdict. If they disagree, an adjudicator model (a larger one) sees the claim, the passages and every judge's verdict, reasoning, quote and whether that quote was found, and decides under the same quote rule. A judge whose output stays invalid after one repair round counts as `unverifiable`.
-5. **Report.** JSON for machines and Markdown for a pull request comment: totals at the top, then per claim the verdict, the source URL, the quote, the decision path, each judge's verdict for jury claims, notes, and optionally the evidence passages.
+4. **The jury (documentation claims only).** Several judge models independently read the claim and the passages and return `supported`, `contradicted` or `unverifiable`, a verbatim quote and the URL. A quote that does not appear in the passages (after normalising Unicode, quotes, dashes, Markdown and whitespace), is shorter than 15 characters or skips text with an ellipsis turns that judge's verdict into `unverifiable`. The URL reported is the passage where the quote really is. Then the **anchoring rule**: a supported or contradicted vote counts only if the passage holding its quote is about the claim's symbol (see below); otherwise it becomes `unverifiable`, with the reason recorded. If the judges agree, that is the verdict. If they disagree, an adjudicator model (a larger one) sees the claim, the passages and every judge's verdict, reasoning, quote and whether that quote was found and anchored, and decides under the same two rules. A judge whose output stays invalid after one repair round counts as `unverifiable`.
+5. **Report.** JSON for machines and Markdown for a pull request comment: totals at the top, then per claim the verdict, the source URL, the quote, the decision path, each judge's verdict (with quote found, anchored, and why a vote was discarded) for jury claims, notes, and optionally the evidence passages with their heading paths.
+
+### Anchoring
+
+The quote rule proves that a quote exists in the documentation. Anchoring checks that the passage holding it is about the symbol the claim names (`fs.rm`, `requests.get`, `datetime.utcnow`), so a line from the `fs.rmdir` section cannot decide a claim about `fs.rm`. It applies to claims with a symbol; claims without one (for example the GitHub Actions limit) are not anchored. The rule (`src/hearsay/anchoring.py`):
+
+1. If the passage sits under an API heading (a heading that is a call signature such as `fs.rmdir(path[, options], callback)`, or a Sphinx definition), the nearest such heading decides alone: it must name the symbol. Other functions mentioned in that section are cross-references and do not count. The `fs.rmdir` version history says "use `fs.rm` instead", and that does not make it about `fs.rm`.
+2. Otherwise the passage's heading path or its text must name the symbol.
+
+"Names the symbol" means one of these forms appears as a whole name, not followed by more identifier characters (so `fs.rmdir` and `fs.rmSync` do not name `fs.rm`):
+
+| Form | Example for the symbol |
+|---|---|
+| dotted name, or a dotted suffix of two or more parts | `fs.rm(`; `datetime.datetime.utcnow` names `datetime.utcnow` |
+| owner alias | `fsPromises.rm`, `fs.promises.rm` name `fs.rm` |
+| Tavily's code rendering, a space after the last dot and a call | `requests. get('https://...')` names `requests.get` |
+| possessive | `datetime.datetime's utcnow()` names `datetime.utcnow` |
+| Sphinx cross-reference target | `[utcnow()](...#datetime.datetime.utcnow)` names `datetime.utcnow` |
+| bare name, for a one-part symbol (a module) | `distutils` |
 
 ### Decision paths
 
@@ -132,7 +151,7 @@ Tavily calls are counted per run. Cached calls are free; once `HEARSAY_TAVILY_MA
 - Opinions, popularity, performance numbers and plans ("most teams prefer httpx").
 - Version-specific documentation: Tavily returns the current docs, so a claim about an old release may be judged against newer text.
 - Licence files inside the package: licence checks use declared metadata.
-- Whether a quote actually entails the verdict. The quote rule proves that the text exists in the source, not that it is about the claimed symbol (see Known problems).
+- Whether a quote actually entails the verdict. The quote rule proves that the text exists in the source and anchoring that its passage is about the claimed symbol; neither proves that the text says what the verdict says.
 - Private packages, private registries and private pull requests.
 
 ## Examples
@@ -148,27 +167,31 @@ Tavily calls are counted per run. Cached calls are free; once `HEARSAY_TAVILY_MA
 What the stand-in got right and wrong (a handful of claims, not an accuracy measurement):
 
 - **Registry and advisory claims (9 across the two inputs, plus 2 version claims in the Dependabot PR): all as expected.** Including: urllib3 1.26.5 does not fix CVE-2023-43804 (fixed in 1.26.17); `fastapi==0.200.0` does not exist; `pydantic-settings-extra` is on neither registry; requests is Apache-2.0, not MIT; lodash 4.17.21 is not affected by CVE-2021-23337 by the original advisory, with a note that a 2026 advisory aliased to the same CVE says otherwise.
-- **Documentation claims (7): 5 as expected, 1 unverifiable, 1 wrong.**
-  - As expected: `datetime.utcnow()` deprecated in 3.12 (supported), "distutils was removed in Python 3.10" (contradicted: removed in 3.12), Stripe idempotency keys (supported), the GitHub Actions 256-job matrix limit (supported), `Array.prototype.at()` with negative indexes (supported).
-  - Unverifiable: "`requests.get` accepts a `max_retries` parameter". The claim is false, but the passages only describe `max_retries` on `HTTPAdapter`, so no quote settles it.
-  - Wrong: "`fs.rm` supports a `recursive` option" came out **contradicted**. Two judges and the adjudicator quoted "v25.0.0 | Remove `recursive` option." from the version history of `fs.rmdir`, a different function. The quote is real, so the quote rule let it through.
+- **Documentation claims (7), with section-aware passages and anchoring: 5 as expected, 2 unverifiable, none wrong.**
+  - As expected: `datetime.utcnow()` deprecated in 3.12 (supported, quote from the `classmethod datetime.utcnow()` definition), "distutils was removed in Python 3.10" (contradicted: "Deprecated since version 3.10, removed in version 3.12."), the GitHub Actions 256-job matrix limit (supported; no symbol, so not anchored), `Array.prototype.at()` with negative indexes (supported), and `fs.rm` supports `recursive` (supported: both judges quoted "`recursive` If true, perform a recursive removal." from the `fs.rm(path[, options], callback)` section).
+  - Unverifiable, false claim: "`requests.get` accepts a `max_retries` parameter". One judge answered contradicted without a quote; the passages only describe `max_retries` on `HTTPAdapter`.
+  - Unverifiable, true claim: "Stripe refunds accept an idempotency key". The 7B judge's quote was 14 characters long. Anchoring would have discarded any quote anyway, because the extractor gave the symbol `Stripe.refunds` and no Stripe page names it. That is the conservative outcome, but it means anchoring is only as good as the symbol the extractor writes.
+- **The `fs.rm` case before and after.** Before, Tavily Extract returned query-ranked chunks without headings. The judges and the adjudicator called the claim contradicted, quoting "v25.0.0 | Remove `recursive` option." from the version history of `fs.rmdir`, a different function. Now the evidence is mostly the `fs.rm` and `fsPromises.rm` sections. A quote from the `fs.rmdir` section is discarded by the anchoring rule, even though that section's history table says "use `fs.rm` instead"; `tests/test_docs.py` replays exactly that case on the recorded page.
 - **Extraction:** the 7B extractor missed two claims in `agent-pr.md` (the documented `timeout` parameter and the GitHub Actions limit), and skipped the own-code claim and the opinion as intended. Before the validation rules above were added, it also set `negated` wrongly in both directions, cited a wrong sentence number, and typed the GitHub Actions sentence as `affected_by_vulnerability`.
-- **Jury behaviour:** the 3B judge often quoted text that is not in the passages or quoted the claim itself; the quote rule turned those votes into `unverifiable`, which is why most documentation claims went to the adjudicator. Verdicts on the same claims also changed between prompt revisions, so these runs say little about prompt quality for Nemotron.
+- **Jury behaviour:** the 3B and 7B judges often quoted text that is not in the passages, quoted the claim itself, or gave quotes too short to check; the quote rule turned those votes into `unverifiable`, which is why several documentation claims went to the adjudicator. Verdicts on the same claims also changed between prompt revisions, so these runs say little about prompt quality for Nemotron.
 
 ## Development
 
 ```sh
-uv run pytest                              # 136 tests, no network, no model calls
+uv run pytest                              # 155 tests, no network, no model calls
 uv run python tests/record_fixtures.py     # re-record fixtures (see below)
 ```
 
-The suite replays real responses recorded in `tests/fixtures/cache` through a read-only cache, refuses any socket connection, and uses a scripted fake model. `tests/record_fixtures.py` records PyPI, npm, deps.dev, OSV and GitHub answers (trimmed to the fields Hearsay reads) and copies Tavily answers from the development cache with network access to Tavily blocked, so recording spends no Tavily credits.
+The suite replays real responses recorded in `tests/fixtures/cache` through a read-only cache, refuses any socket connection, and uses a scripted fake model. `tests/record_fixtures.py` records PyPI, npm, deps.dev, OSV and GitHub answers (trimmed to the fields Hearsay reads) and copies Tavily answers from the development cache with network access to Tavily blocked, so recording spends no Tavily credits. Extracted pages over 1 MB (Node's single-page `all.html`) are emptied in the fixtures, so in replay that page falls back to its search snippet.
 
-Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-model extraction), `registries.py`, `versions.py`, `licenses.py` and `deterministic.py` (registry and advisory checks), `docs_domain.py`, `tavily.py`, `passages.py`, `jury.py`, `quotes.py` and `docs.py` (documentation path), `pipeline.py` (routing), `report.py`, `cli.py`, `cache.py`, `http.py` and `llm.py`.
+Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-model extraction), `registries.py`, `versions.py`, `licenses.py` and `deterministic.py` (registry and advisory checks), `docs_domain.py`, `tavily.py`, `passages.py` (page sections and windows), `anchoring.py`, `jury.py`, `quotes.py` and `docs.py` (documentation path), `pipeline.py` (routing), `report.py`, `cli.py`, `cache.py`, `http.py` and `llm.py`.
 
 ## Known problems
 
-- **Quote relevance.** A verbatim quote can be about the wrong symbol (`fs.rmdir` for `fs.rm` above). Tavily's chunks lose the section heading that says which function a table belongs to.
+- **Anchoring depends on the extractor's symbol.** A made-up symbol (`Stripe.refunds`) makes every quote unanchored. A claim without a symbol is not anchored at all.
+- **Anchoring is weak on prose guides.** On a user guide whose sections are full of code samples (the requests "Advanced Usage" page), nearly every section names `requests.get`, so anchoring does not separate them.
+- **Some headings that mention a call are not API sections.** Node's "DEP0147: fs.rmdir(path, { recursive: true })" counts as a heading for `fs.rmdir`. Its advice to use `fs.rm(path, { recursive: true, force: true })` therefore cannot support an `fs.rm` claim.
+- **Whole pages are large.** Extracting whole pages keeps the headings but can be big (Node's `all.html` is 2.5 MB of Markdown). It costs no extra Tavily credits, and the cache stores it once.
 - **Extraction recall** depends on the extractor model; the safety net only covers install commands and pins.
 - **OSV alias merging** means "the advisory for this CVE" is a choice; Hearsay picks the matching or earliest record and reports disagreement rather than resolving it.
 - **No ecosystem stated** and a package name that exists on both PyPI and npm makes version and licence claims `unverifiable`.

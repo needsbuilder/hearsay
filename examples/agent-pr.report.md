@@ -1,6 +1,6 @@
 ## Hearsay: claims about the outside world
 
-**11 claims checked: 5 supported, 5 contradicted, 1 unverifiable.**
+**11 claims checked: 4 supported, 5 contradicted, 2 unverifiable.**
 
 | # | Verdict | Claim | Decided by | Source |
 |---|---|---|---|---|
@@ -11,10 +11,10 @@
 | c5 | **CONTRADICTED** | pydantic-settings-extra is added. | registry | <https://pypi.org/pypi/pydantic-settings-extra/json> |
 | c6 | **SUPPORTED** | httpx is BSD-3-Clause licensed. | registry | <https://api.deps.dev/v3/systems/pypi/packages/httpx/versions/0.28.1> |
 | c7 | **CONTRADICTED** | requests is MIT licensed. | registry | <https://api.deps.dev/v3/systems/pypi/packages/requests/versions/2.34.2> |
-| c8 | **UNVERIFIABLE** | requests.get accepts a max_retries parameter. | adjudicator | - |
-| c9 | **SUPPORTED** | datetime.utcnow() is deprecated since Python 3.12. | adjudicator | <https://docs.python.org/3/whatsnew/3.12.html> |
-| c10 | **CONTRADICTED** | distutils was removed in Python 3.10. | adjudicator | <https://docs.python.org/3/whatsnew/3.12.html> |
-| c11 | **SUPPORTED** | Stripe refunds accept an idempotency key. | adjudicator | <https://docs.stripe.com/idempotency> |
+| c8 | **UNVERIFIABLE** | requests.get accepts a max_retries parameter. | jury | - |
+| c9 | **SUPPORTED** | datetime.utcnow() is deprecated since Python 3.12. | adjudicator | <https://docs.python.org/3/library/datetime.html> |
+| c10 | **CONTRADICTED** | distutils was removed in Python 3.10. | adjudicator | <https://docs.python.org/3/library/distutils.html> |
+| c11 | **UNVERIFIABLE** | Stripe refunds accept an idempotency key. | jury | - |
 
 ### c1. SUPPORTED: requests 2.31.0 fixes CVE-2023-32681.
 
@@ -120,50 +120,52 @@ Source: <https://api.deps.dev/v3/systems/pypi/packages/requests/versions/2.34.2>
 
 ### c8. UNVERIFIABLE: requests.get accepts a max_retries parameter.
 
-Claim type `parameter_exists`, decided by **adjudicator**.
+Claim type `parameter_exists`, decided by **jury**.
 
 Said in the input:
 > - `requests.get` also accepts a `max_retries` parameter, so the custom adapter is gone.
 
-Judges disagreed (qwen2.5:3b: unverifiable, qwen2.5:7b: contradicted); the adjudicator decided unverifiable. The excerpt mentions a `max_retries` parameter but in the context of retry settings for HTTP connections, not as a direct argument to `requests.get()`. This does not support the claim.
+1 of 2 judges answered contradicted but their quotes were not in the evidence, so the verdict is unverifiable.
 
-| Judge | Model | Verdict | Stated | Quote found |
-|---|---|---|---|---|
-| judge 1 | `qwen2.5:3b` | unverifiable | unverifiable | no |
-| judge 2 | `qwen2.5:7b` | contradicted | contradicted | yes |
-| adjudicator | `qwen2.5:7b` | unverifiable | unverifiable | no |
+| Judge | Model | Verdict | Stated | Quote found | Anchored |
+|---|---|---|---|---|---|
+| judge 1 | `qwen2.5:3b` | unverifiable | unverifiable | no | - |
+| judge 2 | `qwen2.5:7b` | unverifiable | contradicted | no | - |
+
+- judge 2: no quote; the contradicted verdict was discarded
 
 Documentation searched: requests.readthedocs.io.
 
 - Documentation source: PyPI metadata for requests: Documentation https://requests.readthedocs.io.
 - Extract failed for https://requests.readthedocs.io/_/downloads/en/stable/pdf; used the search snippet.
 - Extract failed for https://requests.readthedocs.io/en/latest/api; used the search snippet.
+- Anchoring: a quote counts only from a passage about requests.get.
 
 <details><summary>Evidence shown to the jury</summary>
 
-[1] <https://requests.readthedocs.io/en/master/user/advanced>
+[1] <https://requests.readthedocs.io/en/master/user/advanced> (Advanced Usage > Request and Response Objects)
 
-> ## Request and Response Objects¶ Whenever a call is made to `requests.get()` and friends, you are doing two major things. First, you are constructing a `Request` object which will be sent off to a server to request or query some resource. Second, a `Response` object is generated once Requests gets a response back from the server. The `Response` object contains all of the information returned by the server and also contains the `Request` object you created originally. Here is a simple request to get some very important information from Wikipedia’s servers:
+> Whenever a call is made to `requests.get()` and friends, you are doing two major things. First, you are constructing a `Request` object which will be sent off to a server to request or query some resource. Second, a `Response` object is generated once Requests gets a response back from the server. The `Response` object contains all of the information returned by the server and also contains the `Request` object you created originally. Here is a simple request to get some very important information from Wikipedia’s servers:
 
-[2] <https://requests.readthedocs.io/en/master/user/advanced>
+[2] <https://requests.readthedocs.io/en/master/user/advanced> (Advanced Usage > Streaming Requests)
 
-> We will begin with the verb most commonly used: GET. HTTP GET is an idempotent method that returns a resource from a given URL. As a result, it is the verb you ought to use when attempting to retrieve data from a web location. An example usage would be attempting to get information about a specific commit from GitHub. Suppose we wanted commit `a050faf` on Requests. We would get it like so:
+> ``` import json import requests r = requests. get('https://httpbin.org/stream/20', stream = True) for line in r. iter_lines():# filter out keep-alive new lines if line: decoded_line = line. decode('utf-8') print(json. loads(decoded_line)) ```
 
-[3] <https://requests.readthedocs.io/en/master/user/advanced>
+[3] <https://requests.readthedocs.io/en/master/user/advanced> (Advanced Usage > HTTP Verbs)
 
-> ``` from urllib3.util import Retry from requests import Session from requests.adapters import HTTPAdapter s = Session() retries = Retry(total = 3, backoff_factor =0.1, status_forcelist =[502, 503, 504], allowed_methods ={'POST'},) s. mount(' HTTPAdapter(max_retries = retries)) ```
+> ``` >>> import requests>>> r = requests. get('https://api.github.com/repos/psf/requests/git/commits/a050faf084662f3a352dd1a941f2c7c9f886d4ad') ```
 
-[4] <https://requests.readthedocs.io/_/downloads/en/stable/pdf>
+[4] <https://requests.readthedocs.io/en/master/user/advanced> (Advanced Usage > Client Side Certificates)
 
-> GetKwargs]) → Response. Sends a GET request. Parameters. • url – URL ... max_retries – The maximum number of retries each connection should
+> If you specify a wrong path or an invalid cert, you’ll get a SSLError: ``` >>> requests. get('https://kennethreitz.org', cert ='/wrong_path/client.pem')SSLError: [Errno 336265225] _ssl.c:347: error:140B0009:SSL routines:SSL_CTX_use_PrivateKey_file:PEM lib ```
 
-[5] <https://requests.readthedocs.io/en/master/user/advanced>
+[5] <https://requests.readthedocs.io/en/master/user/advanced> (Advanced Usage > Body Content Workflow)
 
-> ``` >>> import requests>>> r = requests. get(' ```
+> ``` with requests. get('https://httpbin.org/get', stream = True) as r:# Do things with the response here. ```
 
-[6] <https://requests.readthedocs.io/en/master/user/advanced>
+[6] <https://requests.readthedocs.io/en/master/user/advanced> (Advanced Usage > SSL Cert Verification)
 
-> ``` r = requests. get(' timeout =(3.05, 27)) ```
+> ``` >>> requests. get('https://requestb.in')requests.exceptions.SSLError: hostname 'requestb.in' doesn't match either of '*.herokuapp.com', 'herokuapp.com' ```
 
 </details>
 
@@ -174,47 +176,50 @@ Claim type `deprecated`, decided by **adjudicator**.
 Said in the input:
 > - Replaced `datetime.utcnow()`, which is deprecated since Python 3.12.
 
-Judges disagreed (qwen2.5:3b: unverifiable, qwen2.5:7b: supported); the adjudicator decided supported. The excerpt from [2] states that `utcnow()` and `utcfromtimestamp()` are deprecated and will be removed in a future version, specifically mentioning Python 3.12, which matches the claim.
+Judges disagreed (qwen2.5:3b: supported, qwen2.5:7b: unverifiable); the adjudicator decided supported. Excerpt [3] explicitly states that `datetime.utcnow()` is deprecated since version 3.12, matching the claim's details of being deprecated since Python 3.12 and specifying the function name.
 
-Source: <https://docs.python.org/3/whatsnew/3.12.html>
+Source: <https://docs.python.org/3/library/datetime.html>
 
-> `datetime.datetime`’s `utcnow()` and `utcfromtimestamp()` are deprecated and will be removed in a future version.
+> Deprecated since version 3.12: Use `datetime.now()` with `UTC` instead.
 
-| Judge | Model | Verdict | Stated | Quote found |
-|---|---|---|---|---|
-| judge 1 | `qwen2.5:3b` | unverifiable | contradicted | no |
-| judge 2 | `qwen2.5:7b` | supported | supported | yes |
-| adjudicator | `qwen2.5:7b` | supported | supported | yes |
+| Judge | Model | Verdict | Stated | Quote found | Anchored |
+|---|---|---|---|---|---|
+| judge 1 | `qwen2.5:3b` | supported | supported | yes | yes |
+| judge 2 | `qwen2.5:7b` | unverifiable | supported | no | - |
+| adjudicator | `qwen2.5:7b` | supported | supported | yes | yes |
+
+- judge 2: quote does not appear in the evidence; the supported verdict was discarded
 
 Documentation searched: docs.python.org.
 
 - Documentation source: Python standard library module 'datetime'.
+- Anchoring: a quote counts only from a passage about datetime.utcnow.
 
 <details><summary>Evidence shown to the jury</summary>
 
-[1] <https://docs.python.org/3/whatsnew/3.12.html>
+[1] <https://docs.python.org/3/whatsnew/3.12.html> (What's New In Python 3.12 > Deprecated)
 
-> See PEP 688 for more details. (Contributed by Shantanu Jain in gh-91896.) `datetime`: `datetime.datetime`’s `utcnow()` and `utcfromtimestamp()` are deprecated and will be removed in a future version. Instead, use timezone-aware objects to represent datetimes in UTC: respectively, call `now()` and `fromtimestamp()` with the tz parameter set to `datetime.UTC`. (Contributed by Paul Ganssle in gh-103857.) `email`: Deprecate the isdst parameter in `email.utils.localtime()`. (Contributed by Alan Williams in gh-72346.) `importlib.abc`: Deprecated the following classes, scheduled for removal in Python 3.14:
+> See [**PEP 688**](https://peps.python.org/pep-0688/#current-options) for more details. (Contributed by Shantanu Jain in [gh-91896](https://github.com/python/cpython/issues/91896).) * [`datetime`](../library/datetime.html#module-datetime "datetime: Basic date and time types."): [`datetime.datetime`](../library/datetime.html#datetime.datetime "datetime.datetime")’s [`utcnow()`](../library/datetime.html#datetime.datetime.utcnow "datetime.datetime.utcnow") and [`utcfromtimestamp()`](../library/datetime.html#datetime.datetime.utcfromtimestamp "datetime.datetime.utcfromtimestamp") are deprecated and will be removed in a future version.
 
-[2] <https://docs.python.org/3/whatsnew/3.12.html>
+[2] <https://docs.python.org/3/whatsnew/3.12.html> (What's New In Python 3.12 > Deprecated > Pending removal in future versions)
 
-> + `utcnow()`: use `datetime.datetime.now(tz=datetime.UTC)`. + `utcfromtimestamp()`: use `datetime.datetime.fromtimestamp(timestamp,tz=datetime.UTC)`. `gettext`: Plural value must be an integer. `importlib`:
+> + [`utcnow()`](../library/datetime.html#datetime.datetime.utcnow "datetime.datetime.utcnow"): use `datetime.datetime.now(tz=datetime.UTC)`. + [`utcfromtimestamp()`](../library/datetime.html#datetime.datetime.utcfromtimestamp "datetime.datetime.utcfromtimestamp"): use `datetime.datetime.fromtimestamp(timestamp,tz=datetime.UTC)`. * [`gettext`](../library/gettext.html#module-gettext "gettext: Multilingual internationalization services."): Plural value must be an integer. * [`importlib`](../library/importlib.html#module-importlib "importlib: The implementation of the import machinery."):
 
-[3] <https://docs.python.org/3/library/datetime.html>
+[3] <https://docs.python.org/3/library/datetime.html> (datetime - Basic date and time types > datetime objects > classmethod datetime.utcnow() [datetime.datetime.utcnow])
 
-> classmethod datetime.utcnow()¶ : Return the current UTC date and time, with `tzinfo` `None`.
+> Deprecated since version 3.12: Use [`datetime.now()`](#datetime.datetime.now "datetime.datetime.now") with [`UTC`](#datetime.UTC "datetime.UTC") instead.
 
-[4] <https://docs.python.org/3/deprecations/index.html>
+[4] <https://docs.python.org/3/deprecations/index.html> (Deprecations > Pending removal in future versions)
 
-> The `PyImport_ImportModuleNoBlock()`: Use `PyImport_ImportModule()` instead. `PyWeakref_GetObject()` and `PyWeakref_GET_OBJECT()`: Use `PyWeakref_GetRef()` instead. The pythoncapi-compat project can be used to get `PyWeakref_GetRef()` on Python 3.12 and older. `PyUnicode_AsDecodedObject()`: Use `PyCodec_Decode()` instead. `PyUnicode_AsDecodedUnicode()`: Use `PyCodec_Decode()` instead; Note that some codecs (for example, “base64”) may return a type other than `str`, such as `bytes`. `PyUnicode_AsEncodedObject()`: Use `PyCodec_Encode()` instead. `PyUnicode_AsEncodedUnicode()`: Use `PyCodec_Encode()` instead; Note that some codecs (for example, “base64”) may return a type other than `bytes`, such as `str`. Python initialization functions, deprecated in Python 3.13:
+> + [`utcnow()`](../library/datetime.html#datetime.datetime.utcnow "datetime.datetime.utcnow"): use `datetime.datetime.now(tz=datetime.UTC)`. + [`utcfromtimestamp()`](../library/datetime.html#datetime.datetime.utcfromtimestamp "datetime.datetime.utcfromtimestamp"): use `datetime.datetime.fromtimestamp(timestamp,tz=datetime.UTC)`. * [`gettext`](../library/gettext.html#module-gettext "gettext: Multilingual internationalization services."): Plural value must be an integer. * [`importlib`](../library/importlib.html#module-importlib "importlib: The implementation of the import machinery."):
 
-[5] <https://docs.python.org/3/library/datetime.html>
+[5] <https://docs.python.org/3/library/datetime.html> (datetime - Basic date and time types > datetime objects > classmethod datetime.utcnow() [datetime.datetime.utcnow])
 
-> Deprecated since version 3.12: Use `datetime.now()` with `UTC` instead.
+> This is like [`now()`](#datetime.datetime.now "datetime.datetime.now"), but returns the current UTC date and time, as a naive [`datetime`](#datetime.datetime "datetime.datetime") object. An aware current UTC datetime can be obtained by calling `datetime.now(timezone.utc)`. See also `now()`.
 
-[6] <https://docs.python.org/3/library/datetime.html>
+[6] <https://docs.python.org/3/library/datetime.html> (datetime - Basic date and time types > datetime objects > classmethod datetime.utcnow() [datetime.datetime.utcnow])
 
-> Deprecated since version 3.12: Use `datetime.fromtimestamp()` with `UTC` instead.
+> : Return the current UTC date and time, with [`tzinfo`](#datetime.datetime.tzinfo "datetime.datetime.tzinfo") `None`.
 
 </details>
 
@@ -225,102 +230,101 @@ Claim type `deprecated`, decided by **adjudicator**.
 Said in the input:
 > - The `distutils` module was removed in Python 3.10, so `setup.py` now imports setuptools.
 
-Judges disagreed (qwen2.5:3b: supported, qwen2.5:7b: contradicted); the adjudicator decided contradicted. The claim states that distutils was removed in Python 3.10, but the excerpts show it was deprecated and removed in Python 3.12. The removal process began in 3.10 as per PEP 632.
+Judges disagreed (qwen2.5:3b: supported, qwen2.5:7b: contradicted); the adjudicator decided contradicted. The claim states that distutils was removed in Python 3.10, but the excerpts show it was actually deprecated in Python 3.10 and removed in Python 3.12. This contradicts the claim.
 
-Source: <https://docs.python.org/3/whatsnew/3.12.html>
+Source: <https://docs.python.org/3/library/distutils.html>
 
-> Remove the `distutils` package. It was deprecated in Python 3.10 by PEP 632 “Deprecate distutils module”. For projects still using `distutils` and cannot be updated to something else, the `setuptools` project can be installed: it still provides `distutils`. (Contributed by Victor Stinner in gh-92584.)
+> Deprecated since version 3.10, removed in version 3.12.
 
-| Judge | Model | Verdict | Stated | Quote found |
-|---|---|---|---|---|
-| judge 1 | `qwen2.5:3b` | supported | supported | yes |
-| judge 2 | `qwen2.5:7b` | contradicted | contradicted | yes |
-| adjudicator | `qwen2.5:7b` | contradicted | contradicted | yes |
+| Judge | Model | Verdict | Stated | Quote found | Anchored |
+|---|---|---|---|---|---|
+| judge 1 | `qwen2.5:3b` | supported | supported | yes | yes |
+| judge 2 | `qwen2.5:7b` | contradicted | contradicted | yes | yes |
+| adjudicator | `qwen2.5:7b` | contradicted | contradicted | yes | yes |
 
 Documentation searched: docs.python.org.
 
 - Documentation source: Python standard library module 'distutils'.
+- Anchoring: a quote counts only from a passage about distutils.
 
 <details><summary>Evidence shown to the jury</summary>
 
-[1] <https://docs.python.org/3/library/distutils.html>
+[1] <https://docs.python.org/3/whatsnew/3.12.html> (What's New In Python 3.12 > Removed > distutils)
 
-> # `distutils` — Building and installing Python modules[¶](#module-distutils "Link to this heading") Deprecated since version 3.10, removed in version 3.12. This module is no longer part of the Python standard library. It was [removed in Python 3.12](../whatsnew/3.12.html#whatsnew312-removed-distutils) after being deprecated in Python 3.10. The removal was decided in [**PEP 632**](https://peps.python.org/pep-0632/), which has [migration advice](https://peps.python.org/pep-0632/#migration-advice).
+> * Remove the `distutils` package. It was deprecated in Python 3.10 by [**PEP 632**](https://peps.python.org/pep-0632/) “Deprecate distutils module”. For projects still using `distutils` and cannot be updated to something else, the `setuptools` project can be installed: it still provides `distutils`. (Contributed by Victor Stinner in [gh-92584](https://github.com/python/cpython/issues/92584).)
 
-[2] <https://docs.python.org/3/whatsnew/3.12.html>
+[2] <https://docs.python.org/3/library/distutils.html> (distutils - Building and installing Python modules)
 
-> ### distutils¶ Remove the `distutils` package. It was deprecated in Python 3.10 by PEP 632 “Deprecate distutils module”. For projects still using `distutils` and cannot be updated to something else, the `setuptools` project can be installed: it still provides `distutils`. (Contributed by Victor Stinner in gh-92584.)
+> Deprecated since version 3.10, removed in version 3.12. This module is no longer part of the Python standard library. It was [removed in Python 3.12](../whatsnew/3.12.html#whatsnew312-removed-distutils) after being deprecated in Python 3.10. The removal was decided in [**PEP 632**](https://peps.python.org/pep-0632/), which has [migration advice](https://peps.python.org/pep-0632/#migration-advice).
 
-[3] <https://docs.python.org/3/whatsnew/3.10.html>
+[3] <https://docs.python.org/3/whatsnew/3.12.html> (What's New In Python 3.12 > C API Changes > Table of Contents)
 
-> - os.path - pathlib - platform - pprint - py\_compile - pyclbr - shelve - statistics - site - socket - ssl - sqlite3 - sys - \_thread - threading - traceback - types - typing - unittest - urllib.parse - xml - zipimport + Optimizations + Deprecated + Removed + Porting to Python 3.10 - Changes in the Python syntax - Changes in the Python API - Changes in the C API + CPython bytecode changes + Build Changes + C API Changes - PEP 652: Maintaining the Stable ABI - New Features - Porting to Python 3.10 - Deprecated - Removed + Notable security feature in 3.10.7 + Notable security feature in 3.10.8 + Notable changes in 3.10.12 - tarfile
+> - [Pending removal in future versions](#pending-removal-in-future-versions) + [Removed](#removed) - [asynchat and asyncore](#asynchat-and-asyncore) - [configparser](#configparser) - [distutils](#distutils) - [ensurepip](#ensurepip) - [enum](#enum) - [ftplib](#ftplib) - [gzip](#gzip) - [hashlib](#hashlib) - [importlib](#importlib) - [imp](#imp) - [io](#io) - [locale](#locale) - [smtpd](#smtpd) - [sqlite3](#id2) - [ssl](#ssl) - [unittest](#id3) - [webbrowser](#webbrowser) - [xml.etree.ElementTree](#xml-etree-elementtree) - [zipimport](#zipimport) - [Others](#others) + [Porting to Python 3.12](#porting-to-python-3-12) - [Changes in the Python API](#changes-in-the-python-api) + [Build Changes](#build-changes) + [C API Changes](#c-api-changes) - [New Features](#id4)
 
-[4] <https://docs.python.org/3/whatsnew/3.10.html>
+[4] <https://docs.python.org/3/whatsnew/3.12.html> (What's New In Python 3.12 > Summary - Release highlights)
 
-> ### distutils¶ The entire `distutils` package is deprecated, to be removed in Python 3.12. Its functionality for specifying package builds has already been completely replaced by third-party packages `setuptools` and `packaging`, and most other commonly used APIs are available elsewhere in the standard library (such as `platform`, `shutil`, `subprocess` or `sysconfig`). There are no plans to migrate any other functionality from `distutils`, and applications that are using other functions should plan to make private copies of the code. Refer to PEP 632 for discussion.
+> Important deprecations, removals or restrictions: * [**PEP 623**](https://peps.python.org/pep-0623/): Remove `wstr` from Unicode objects in Python’s C API, reducing the size of every [`str`](../builtins/stdtypes.html#str "str") object by at least 8 bytes. * [**PEP 632**](https://peps.python.org/pep-0632/): Remove the `distutils` package. See [**the migration guide**](https://peps.python.org/pep-0632/#migration-advice) for advice replacing the APIs it provided. The third-party [Setuptools](https://setuptools.pypa.io/en/latest/deprecated/distutils-legacy.html) package continues to provide `distutils`, if you still require it in Python 3.12 and beyond. * [gh-95299](https://github.com/python/cpython/issues/95299): Do not pre-install `setuptools` in virtual environments created with [`venv`](../library/venv.html#module-venv "venv: Creation of virtual environments.").
 
-[5] <https://docs.python.org/3/library/distutils.html>
+[5] <https://docs.python.org/3/library/distutils.html> (distutils - Building and installing Python modules > Navigation)
 
-> ### Navigation * [index](../genindex.html "General Index") * [modules](../py-modindex.html "Python Module Index") | * [next](imghdr.html "imghdr — Determine the type of an image") | * [previous](crypt.html "crypt — Function to check Unix passwords") | * [Python](https://www.python.org/) » * [3.15.0 Documentation](../index.html) » * [The Python standard library](index.html) » * [Removed Modules](removed.html) » * `distutils` — Building and installing Python modules * | * |
+> * [index](../genindex.html "General Index") * [modules](../py-modindex.html "Python Module Index") | * [next](imghdr.html "imghdr — Determine the type of an image") | * [previous](crypt.html "crypt — Function to check Unix passwords") | * [Python](https://www.python.org/) » * [3.15.0 Documentation](../index.html) » * [The Python standard library](index.html) » * [Removed Modules](removed.html) » * `distutils` — Building and installing Python modules * | * |
 
-[6] <https://docs.python.org/3/library/distutils.html>
+[6] <https://docs.python.org/3/library/distutils.html> (distutils - Building and installing Python modules)
 
 > The last version of Python that provided the `distutils` module was [Python 3.11](https://docs.python.org/3.11/library/distutils.html).
 
 </details>
 
-### c11. SUPPORTED: Stripe refunds accept an idempotency key.
+### c11. UNVERIFIABLE: Stripe refunds accept an idempotency key.
 
-Claim type `parameter_exists`, decided by **adjudicator**.
+Claim type `parameter_exists`, decided by **jury**.
 
 Said in the input:
 > - Stripe refunds accept an idempotency key, so retrying the refund call is safe.
 
-Judges disagreed (qwen2.5:3b: unverifiable, qwen2.5:7b: supported); the adjudicator decided supported. The claim states that Stripe refunds accept an idempotency key, which is directly supported by excerpts [5] and [6]. These excerpts explicitly mention that all `POST` requests, including those used for refunds, accept idempotency keys.
+1 of 2 judges answered supported but their quotes were not in the evidence, so the verdict is unverifiable.
 
-Source: <https://docs.stripe.com/idempotency>
+| Judge | Model | Verdict | Stated | Quote found | Anchored |
+|---|---|---|---|---|---|
+| judge 1 | `qwen2.5:3b` | unverifiable | unverifiable | no | - |
+| judge 2 | `qwen2.5:7b` | unverifiable | supported | no | - |
 
-> For API v1, all `POST` requests accept idempotency keys. Don’t send idempotency keys in `GET` and `DELETE` requests because it has no effect.
-
-| Judge | Model | Verdict | Stated | Quote found |
-|---|---|---|---|---|
-| judge 1 | `qwen2.5:3b` | unverifiable | unverifiable | no |
-| judge 2 | `qwen2.5:7b` | supported | supported | yes |
-| adjudicator | `qwen2.5:7b` | supported | supported | yes |
+- judge 2: quote is shorter than 15 characters; the supported verdict was discarded
 
 Documentation searched: docs.stripe.com, stripe.com.
 
 - Documentation source: curated map: 'stripe'.
+- Anchoring: a quote counts only from a passage about Stripe.refunds.
 
 <details><summary>Evidence shown to the jury</summary>
 
-[1] <https://docs.stripe.com/idempotency>
-
-> `500` A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long. Avoid using sensitive data (for example, email addresses or personal identifiers) as idempotency keys.
-
-[2] <https://docs.stripe.com/api/idempotent_requests?__=>
+[1] <https://docs.stripe.com/idempotency> (Idempotent requests)
 
 > A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long. Avoid using sensitive data (for example, email addresses or personal identifiers) as idempotency keys.
 
+[2] <https://docs.stripe.com/idempotency> (Idempotent requests)
+
+> For API v1, Stripe saves the status code and body of the first request made with a given idempotency key after endpoint execution begins. Retries with the same key return the saved response, including `500` errors. With [API v2](/api-v2-overview#idempotency), retries don’t repeat successful operations. Stripe retries failed or partially failed work to completion when possible and returns an updated response. If a retry can’t succeed, Stripe returns an error explaining why.
+
 [3] <https://docs.stripe.com/idempotency>
 
-> `IdempotencyKey` For API v1, Stripe saves the status code and body of the first request made with a given idempotency key after endpoint execution begins. Retries with the same key return the saved response, including `500` errors. With API v2, retries don’t repeat successful operations. Stripe retries failed or partially failed work to completion when possible and returns an updated response. If a retry can’t succeed, Stripe returns an error explaining why.
+> [Payouts](https://docs.stripe.com/api/payouts) [Refunds](https://docs.stripe.com/api/refunds) [Confirmation Tokens](https://docs.stripe.com/api/confirmation_tokens) [Tokens](https://docs.stripe.com/api/tokens) [Ephemeral Keys](https://docs.stripe.com/api/ephemeral_keys) Payment Methods [Payment Methods](https://docs.stripe.com/api/payment_methods) [Payment Method Configurations](https://docs.stripe.com/api/payment_method_configurations)
 
-[4] <https://docs.stripe.com/api/idempotent_requests?__=>
+[4] <https://docs.stripe.com/api/idempotent_requests?api-version=2025-07-30.preview>
 
-> For API v1, Stripe saves the status code and body of the first request made with a given idempotency key after endpoint execution begins. Retries with the same key return the saved response, including `500` errors. With API v2, retries don’t repeat successful operations. Stripe retries failed or partially failed work to completion when possible and returns an updated response. If a retry can’t succeed, Stripe returns an error explaining why.
+> [Payouts](https://docs.stripe.com/api/payouts?api-version=2025-07-30.preview) [Refunds](https://docs.stripe.com/api/refunds?api-version=2025-07-30.preview) [Confirmation Token](https://docs.stripe.com/api/confirmation_tokens?api-version=2025-07-30.preview)
 
-[5] <https://docs.stripe.com/idempotency>
+[5] <https://docs.stripe.com/idempotency> (Idempotent requests)
 
 > For API v1, all `POST` requests accept idempotency keys. Don’t send idempotency keys in `GET` and `DELETE` requests because it has no effect. These requests are idempotent by definition.
 
 [6] <https://docs.stripe.com/idempotency>
 
-> # Idempotent requests The API supports idempotency for safely retrying requests without accidentally performing the same operation twice. When creating or updating an object, use an idempotency key. Then, if a connection error occurs, you can safely repeat the request without risk of creating a second object or performing the update twice.
+> [Account Links](https://docs.stripe.com/api/account_links) [Account Sessions](https://docs.stripe.com/api/account_sessions) [Application Fees](https://docs.stripe.com/api/application_fees) [Application Fee Refunds](https://docs.stripe.com/api/fee_refunds) [Capabilities](https://docs.stripe.com/api/capabilities) [Country Specs](https://docs.stripe.com/api/country_specs) [Balance Settings](https://docs.stripe.com/api/balance-settings) [External Bank Accounts](https://docs.stripe.com/api/external_accounts) [External Account Cards](https://docs.stripe.com/api/external_account_cards) [Persons](https://docs.stripe.com/api/persons) [Top-ups](https://docs.stripe.com/api/topups) [Transfers](https://docs.stripe.com/api/transfers) [Transfer Reversals](https://docs.stripe.com/api/transfer_reversals) [Secrets](https://docs.stripe.com/api/secret_management)
 
 </details>
 
 ---
 Claims extracted by `qwen2.5:7b` from 19 sentences.
 Jury: `qwen2.5:3b`, `qwen2.5:7b`; adjudicator `qwen2.5:7b`.
-Calls this run: 0 HTTP (15 cached), 0 Tavily (8 cached), 12 model (5 cached).
+Calls this run: 0 HTTP (15 cached), 0 Tavily (8 cached), 0 model (16 cached).
