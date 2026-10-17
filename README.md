@@ -11,6 +11,7 @@ Hearsay is an entry for the NVIDIA x Nebius Global AI Hackathon (track: Coding a
 - The model stages (claim extraction and the jury) are built for **Nebius Token Factory** (OpenAI-compatible API, `https://api.tokenfactory.nebius.com/v1/`) with **NVIDIA Nemotron** models. **The Token Factory configuration is pending**: the API key has not been issued yet, so the model ids in `.env.example` are placeholders. They will be filled in from `GET /v1/models` once the key exists. The real jury uses distinct Nemotron models.
 - Until then, the model stages were developed against a local OpenAI-compatible server (Ollama with `qwen2.5:7b` and `qwen2.5:3b`, see `dev/ollama.env`). This is a development stand-in only. The example outputs in `examples/` were produced with it, and the notes below say what it got right and wrong.
 - The registry, advisory and Tavily paths are complete and were run against the live services.
+- Delivery: a web demo with a JSON API, an MCP server for coding agents, a GitHub Action, and Docker and Render files for the demo. The demo is not deployed yet and the action has not run on GitHub yet (see those sections for how each was tested).
 
 ## What it checks
 
@@ -94,6 +95,8 @@ uv run hearsay check --github-pr owner/repo#123          # public PR, unauthenti
 uv run hearsay claim "requests 2.31.0 fixes CVE-2023-32681"
 cat answer.md | uv run hearsay check --json              # stdin
 uv run hearsay check pr-description.md --no-llm          # no model calls at all
+uv run hearsay web --env-file .env                         # web demo on http://127.0.0.1:8000
+uv run hearsay mcp --env-file .env                         # MCP server on stdio
 ```
 
 Options (for `check` and `claim`):
@@ -121,6 +124,147 @@ print(hearsay.to_markdown(report))
 
 `hearsay.check_claims([...])` checks claims that are already structured, and `hearsay.Context.create(...)` lets a caller share one cache, HTTP client and Tavily budget across calls.
 
+## Web demo
+
+`src/hearsay/web/` is a FastAPI app: server-rendered HTML, one stylesheet and a small script (a character counter and a busy state while a check runs). There is no frontend build step, and the page loads nothing from other sites.
+
+```sh
+uv run hearsay web --env-file .env      # http://127.0.0.1:8000
+```
+
+**The page.** Paste a pull request description or an agent's answer, or open a bundled example. The report shows the totals, then each claim with its verdict, the decision path (registry, advisory, jury, adjudicator), the source URL and the quote. For documentation claims the quote is highlighted inside the passage it was found in, and every vote is listed: what the model answered, what counted after the rules, whether its quote was found in the evidence, whether it came from a section about the claim's symbol, and why a vote was discarded. The passages the jury read are under "Evidence". Screenshots are in `docs/screenshots/`.
+
+**The API.**
+
+| Endpoint | Returns |
+|---|---|
+| `POST /api/check` with `{"text": "..."}` | the report JSON, the same as `hearsay check --json` |
+| `POST /api/check` with `{"example": "agent-pr"}` | a bundled example's report |
+| `GET /api/examples`, `GET /api/examples/{id}` | the bundled examples, one example's report |
+| `GET /healthz` | status, whether models and Tavily are configured, Tavily calls used today |
+
+```sh
+curl -s localhost:8000/api/check -H 'content-type: application/json' \
+  -d '{"text": "Upgrading urllib3 to 1.26.5 fixes CVE-2023-43804."}'
+```
+
+Report responses carry `X-Hearsay-Run` (`example` or `live`) and one `X-Hearsay-Notice` header per notice (for example "model calls are not configured"). Errors are JSON, `{"error": "...", "message": "..."}`, with status 400, 413, 429 or 503, and `Retry-After` where it applies.
+
+**Bundled examples.** `src/hearsay/web/demo/bundle.json.gz` holds the two example inputs (`examples/agent-pr.md`, `examples/chat-answer.md`), the model settings they were recorded with, and every cached answer their runs read: registry, OSV and deps.dev responses, Tavily pages and model replies. Opening an example runs the normal pipeline against that snapshot with the network refused, a Tavily budget of zero and a model client that cannot connect. So it makes no API calls and shows the same report when every limit below is reached. A test replays both examples and compares them with `examples/*.report.json`. Live checks read the snapshot after their own cache, so an edited example reuses the answers the bundle holds. The page says which models recorded an example; the current bundle was recorded with the local development stand-in. To rebuild it after the examples are re-run (for example with Nemotron once the Token Factory key exists):
+
+```sh
+uv run hearsay check examples/agent-pr.md      # fills .hearsay-cache with the current settings
+uv run hearsay check examples/chat-answer.md
+uv run python -m hearsay.web.demo build --env-file .env
+```
+
+The build stops if any answer is missing from the cache.
+
+**Limits for a public demo.** All are environment variables.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `HEARSAY_WEB_MAX_CHARS` | 8000 | longest text accepted (413 and a message above it) |
+| `HEARSAY_TAVILY_MAX_CALLS` | 20 | new Tavily calls per check (the existing per-run cap) |
+| `HEARSAY_WEB_TAVILY_DAILY_CAP` | 40 | new Tavily calls per UTC day for the whole demo; cached answers are free and not limited |
+| `HEARSAY_WEB_RATE_LIMIT`, `HEARSAY_WEB_RATE_WINDOW` | 6, 600 | live checks per client address per window in seconds (429 with `Retry-After`) |
+| `HEARSAY_WEB_MAX_CONCURRENT` | 2 | live checks running at once (503 when busy) |
+| `HEARSAY_WEB_TRUST_FORWARDED` | off | take the client address from the left-most `X-Forwarded-For` entry; set it behind a proxy |
+| `HEARSAY_WEB_REPO_URL` | none | link to the source repository in the footer |
+
+- Bundled examples, and text identical to one, do not count against any limit.
+- When a Tavily limit stops a lookup, that claim is `unverifiable` with the reason, and the page says which limit was reached.
+- Request bodies larger than the text limit allows are refused before they are read (413; 411 without `Content-Length`).
+- Keys come only from environment variables; the page never asks for one. `hearsay web` does not read a `.env` in the working directory, only `--env-file`.
+- Without model settings, live checks use the pattern extractor and the page says so. Without a Tavily key, documentation claims are unverifiable and the page says so.
+- Responses carry a Content-Security-Policy that allows only the app's own script and stylesheet; input is escaped and only `http(s)` URLs become links.
+
+## MCP server
+
+`hearsay mcp` runs an MCP server on stdio, built on the official MCP Python SDK (`mcp` 2.x, `MCPServer`). It lets a coding agent check a statement before making it.
+
+| Tool | Argument | For |
+|---|---|---|
+| `hearsay_claim` | `sentence` | one statement, for example "requests 2.31.0 fixes CVE-2023-32681" |
+| `hearsay_check` | `text` | a draft pull request description or answer |
+
+Both return structured content with a published output schema, `{totals, claims: [{id, statement, type, verdict, path, source_url, quote, reason, source_sentence}], models_used, notes}`, and a short text summary with one line per claim:
+
+```text
+1 claim: 0 supported, 1 contradicted, 0 unverifiable.
+- CONTRADICTED (advisory): urllib3 1.26.5 fixes CVE-2023-43804. urllib3 1.26.5 is still affected by CVE-2023-43804 (GHSA-v845-jxx5-vc9f). The fix is in 1.26.17. Source: https://api.osv.dev/v1/vulns/GHSA-v845-jxx5-vc9f Quote: "affected[urllib3].ranges.events: [{"introduced": "0"}, {"fixed": "1.26.17"}]"
+```
+
+The tools are marked read-only. The server also sends instructions to the client: check a fact with `hearsay_claim` before stating it, do not make a contradicted statement, say so when a claim is unverifiable. Settings come from the environment or `--env-file`; a `.env` in the agent's working directory is not read. Each tool call has its own Tavily budget (`HEARSAY_TAVILY_MAX_CALLS`). Without model settings the tools use the pattern extractor and say so in `notes`.
+
+Claude Code:
+
+```sh
+claude mcp add hearsay -- uv --directory /path/to/hearsay run hearsay mcp --env-file /path/to/hearsay/.env
+```
+
+Codex:
+
+```sh
+codex mcp add hearsay -- uv --directory /path/to/hearsay run hearsay mcp --env-file /path/to/hearsay/.env
+```
+
+or in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.hearsay]
+command = "uv"
+args = ["--directory", "/path/to/hearsay", "run", "hearsay", "mcp", "--env-file", "/path/to/hearsay/.env"]
+```
+
+Keys can be passed with `-e KEY=value` (Claude Code) or `--env KEY=value` (Codex) instead of a file. `uv --directory` runs the server inside the Hearsay checkout, so every project shares its `.hearsay-cache`. To make an agent use the tools without being asked, add a line to its instructions (`CLAUDE.md`, `AGENTS.md`), for example: "Before stating a package version, CVE fix, licence, documented parameter or deprecation, check it with hearsay_claim."
+
+## GitHub Action
+
+`action.yml` is a composite action that runs Hearsay on a pull request and keeps one comment with the Markdown report up to date. `examples/github-workflow.yml` is a workflow to copy.
+
+- It checks the pull request title and description from the event payload. With `include-bot-comments: "true"` it also checks comments by bot accounts and by the logins in `agent-logins`, and an `issue_comment` event from such an account runs the check again. Hearsay's own comment, found by a hidden marker, is never checked.
+- It updates its earlier comment, or creates one. With no claims and no earlier comment it posts nothing, unless `comment-on-empty: "true"`.
+- With `fail-on-contradicted: "true"` the step fails (exit status 2) when any claim is contradicted.
+- It writes the full report to the job summary and sets the outputs `claims`, `supported`, `contradicted`, `unverifiable` and `comment-url`.
+- With `cache: "true"` (the default) Hearsay's cache is kept between runs with `actions/cache`, so a re-run after an edit reuses earlier answers.
+- Inputs reach the script only through environment variables, and the third-party actions it uses (`astral-sh/setup-uv`, `actions/cache`) are pinned to commits.
+- It never checks out or runs the pull request's code, which is why the example uses `pull_request_target`: pull requests from forks then get the secrets and a write token too.
+
+| Input | Default | Meaning |
+|---|---|---|
+| `github-token` | `github.token` | reads and writes the comment (`pull-requests: write`) |
+| `tavily-api-key` | none | Tavily key; without it documentation claims are unverifiable |
+| `llm-api-key` | none | key for the model endpoint |
+| `llm-base-url` | Token Factory | OpenAI-compatible endpoint |
+| `extract-model`, `judge-models`, `adjudicator-model` | none | model ids; without them only install commands, pins and CVE sentences are checked |
+| `fail-on-contradicted` | `false` | fail the check on any contradicted claim |
+| `include-bot-comments` | `false` | also check bot and agent comments |
+| `agent-logins` | none | comma-separated logins to treat as agents |
+| `comment-on-empty` | `false` | comment even when no claims are found |
+| `tavily-max-calls` | 20 | new Tavily calls per run |
+| `cache` | `true` | keep the cache between runs |
+
+The action has not run on GitHub yet. The script it runs, `python -m hearsay.github_action`, was run locally against saved events (`tests/fixtures/action/`), the way the composite step calls it, with `--dry-run` so that it prints the comment instead of calling the GitHub API:
+
+```sh
+GITHUB_EVENT_PATH=tests/fixtures/action/pull_request.json GITHUB_REPOSITORY=example-org/payments-service \
+  uv run python -m hearsay.github_action --dry-run --comment-out comment.md
+```
+
+`examples/github-action-comment.md` is the comment from that run (development stand-in models, Tavily answers from the cache).
+
+## Deployment (Render)
+
+- `Dockerfile`: two stages on `python:3.12-slim`. uv installs the locked dependencies without the dev tools; the app runs as an unprivileged user (uid 10001) under uvicorn on `$PORT` (Render sets it; 8000 otherwise). The cache is `/tmp/hearsay-cache`; the bundled examples do not need it.
+- `render.yaml`: a Blueprint for one free web service with the Docker runtime and the health check `/healthz`. Keys and model ids are declared with `sync: false`, so Render asks for them when the Blueprint is created and nothing secret is in the file. In the Render dashboard: New, Blueprint, pick the repository, fill in the values.
+- Free instances stop after 15 minutes without traffic and start again on the next request, which is slow. Their filesystem is not kept, so the cache starts empty after each start.
+
+```sh
+docker build -t hearsay .
+docker run --rm -p 8000:8000 --env-file .env hearsay    # http://localhost:8000
+```
+
 ## Configuration
 
 | Variable | Meaning |
@@ -135,7 +279,7 @@ print(hearsay.to_markdown(report))
 | `HEARSAY_CACHE_DIR` | cache directory, default `.hearsay-cache`; `off` disables it |
 | `HEARSAY_LLM_TIMEOUT` | seconds per model call, default 300 |
 
-Values written as `<placeholder>` count as unset. Model calls use temperature 0 and JSON mode. Reasoning blocks (`<think>...</think>`) and code fences around the JSON are tolerated; the JSON itself is validated strictly.
+The web demo's limits have their own variables (see "Web demo"). Values written as `<placeholder>` count as unset. Model calls use temperature 0 and JSON mode. Reasoning blocks (`<think>...</think>`) and code fences around the JSON are tolerated; the JSON itself is validated strictly.
 
 ## Cache and budget
 
@@ -163,6 +307,7 @@ Tavily calls are counted per run. Cached calls are free; once `HEARSAY_TAVILY_MA
 | `agent-pr.md`: an agent-style PR description with true, false, unverifiable and own-code claims | `agent-pr.report.md`, `.json` |
 | `chat-answer.md`: an agent-style chat answer | `chat-answer.report.md`, `.json` |
 | `gesiscss/gesis_surf_backend#67` (a public Dependabot PR), with `--no-llm` | `github-pr-dependabot.report.md`, `.json` |
+| `tests/fixtures/action/pull_request.json`, a saved `pull_request` event with the `agent-pr.md` text, through the GitHub Action's script | `github-action-comment.md` |
 
 What the stand-in got right and wrong (a handful of claims, not an accuracy measurement):
 
@@ -178,13 +323,13 @@ What the stand-in got right and wrong (a handful of claims, not an accuracy meas
 ## Development
 
 ```sh
-uv run pytest                              # 155 tests, no network, no model calls
+uv run pytest                              # 202 tests, no network, no model calls
 uv run python tests/record_fixtures.py     # re-record fixtures (see below)
 ```
 
 The suite replays real responses recorded in `tests/fixtures/cache` through a read-only cache, refuses any socket connection, and uses a scripted fake model. `tests/record_fixtures.py` records PyPI, npm, deps.dev, OSV and GitHub answers (trimmed to the fields Hearsay reads) and copies Tavily answers from the development cache with network access to Tavily blocked, so recording spends no Tavily credits. Extracted pages over 1 MB (Node's single-page `all.html`) are emptied in the fixtures, so in replay that page falls back to its search snippet.
 
-Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-model extraction), `registries.py`, `versions.py`, `licenses.py` and `deterministic.py` (registry and advisory checks), `docs_domain.py`, `tavily.py`, `passages.py` (page sections and windows), `anchoring.py`, `jury.py`, `quotes.py` and `docs.py` (documentation path), `pipeline.py` (routing), `report.py`, `cli.py`, `cache.py`, `http.py` and `llm.py`.
+Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-model extraction), `registries.py`, `versions.py`, `licenses.py` and `deterministic.py` (registry and advisory checks), `docs_domain.py`, `tavily.py`, `passages.py` (page sections and windows), `anchoring.py`, `jury.py`, `quotes.py` and `docs.py` (documentation path), `pipeline.py` (routing), `report.py`, `cli.py`, `cache.py`, `http.py` and `llm.py`. Delivery: `web/` (`app.py`, `limits.py`, `views.py`, `demo.py` and the bundle, templates and static files), `mcp_server.py` and `github_action.py` (the script behind `action.yml`). The web, MCP and action tests (`tests/test_web.py`, `test_mcp_server.py`, `test_github_action.py`) use the bundle, the recorded fixtures, a scripted model, the MCP SDK's in-process client and a fake GitHub API.
 
 ## Known problems
 
@@ -195,6 +340,10 @@ Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-mo
 - **Extraction recall** depends on the extractor model; the safety net only covers install commands and pins.
 - **OSV alias merging** means "the advisory for this CVE" is a choice; Hearsay picks the matching or earliest record and reports disagreement rather than resolving it.
 - **No ecosystem stated** and a package name that exists on both PyPI and npm makes version and licence claims `unverifiable`.
+- **Old documentation versions.** Tavily can return pages of old releases. For "`json.dumps` accepts a `sort_keys` parameter" it returned the Python 2.7, 3.4 and 3.5 source text pages. (In that run both stand-in judges also quoted an example with its double quotes changed to single quotes, so both quotes were discarded and the claim was unverifiable.)
+- **The demo's limits live in memory.** The daily Tavily cap and the rate limit start again when the process restarts, and a free Render instance restarts after 15 idle minutes. The Tavily key's own monthly limit is the hard stop.
+- **Client address on Render.** Render does not document how it sets `X-Forwarded-For`. With `HEARSAY_WEB_TRUST_FORWARDED` the left-most entry is used; a client can forge it to get around the per-address limit, not the daily cap. Check the header on the deployed service.
+- **The bundle must be rebuilt** when prompts, the pipeline or the model settings change, because replays then miss answers (the test that replays the examples fails). It holds copies of the documentation pages those runs read (Node.js, Python, GitHub, MDN, Stripe), as the test fixtures do.
 
 ## License
 

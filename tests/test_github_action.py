@@ -84,7 +84,7 @@ def test_comment_has_marker_report_scope_and_run_link():
     assert "| c2 | **CONTRADICTED** | requests is MIT licensed. | registry |" in body
     assert "Checked the pull request description and 1 comment by @devin-ai-integration[bot]." in body
     assert "A note." in body and "[Workflow run](https://github.com/o/r/actions/runs/1)" in body
-    assert "—" not in body
+    assert "\u2014" not in body
 
 
 def test_long_report_falls_back_to_the_table_and_then_a_hard_cut():
