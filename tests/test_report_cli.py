@@ -29,7 +29,7 @@ def test_report_totals_json_and_markdown():
     assert "**3 claims checked: 1 supported, 1 contradicted, 1 unverifiable.**" in md
     assert "| c2 | **CONTRADICTED** |" in md
     assert '> licenses: "Apache-2.0"' in md
-    assert "—" not in md
+    assert "\u2014" not in md
 
 
 def test_check_without_llm_uses_patterns():

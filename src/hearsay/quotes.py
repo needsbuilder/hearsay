@@ -11,10 +11,10 @@ MIN_QUOTE_CHARS = 15
 
 _QUOTES = str.maketrans(
     {
-        "‘": "'", "’": "'", "‚": "'", "‛": "'", "′": "'",
-        "“": '"', "”": '"', "„": '"', "‟": '"', "″": '"',
-        "‐": "-", "‑": "-", "‒": "-", "–": "-", "—": "-", "−": "-",
-        " ": " ", " ": " ", " ": " ",
+        "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'", "\u2032": "'",
+        "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"', "\u2033": '"',
+        "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2014": "-", "\u2212": "-",
+        "\u00a0": " ", "\u2009": " ", "\u202f": " ",
     }
 )
 _MD_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
@@ -30,7 +30,7 @@ def normalize(text: str) -> str:
     s = _MD_LINK.sub(r"\1", s)
     s = _HEADING.sub(r"\1", s)
     s = _MD_MARKS.sub("", s)
-    s = s.replace("¶", " ")
+    s = s.replace("\u00b6", " ")
     s = _SPACE.sub(" ", s)
     return s.strip()
 
@@ -50,7 +50,7 @@ def quote_problem(quote: str | None, text: str) -> str | None:
     if len(q) < MIN_QUOTE_CHARS:
         return f"quote is shorter than {MIN_QUOTE_CHARS} characters"
     if q not in normalize(text):
-        if "..." in q or "…" in q:
+        if "..." in q or "\u2026" in q:
             return "quote skips text with an ellipsis; it must be one contiguous span"
         return "quote does not appear in the evidence"
     return None

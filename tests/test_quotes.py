@@ -2,8 +2,8 @@ from hearsay.models import Passage
 from hearsay.quotes import display_quote, find_quote, normalize, quote_problem
 
 EVIDENCE = (
-    "## Timeouts¶\n\nYou can tell Requests to stop waiting for a response after a given number of\n"
-    "seconds with the `timeout` parameter. It’s a “connect” timeout, see [the docs](https://example.org/x)."
+    "## Timeouts\u00b6\n\nYou can tell Requests to stop waiting for a response after a given number of\n"
+    "seconds with the `timeout` parameter. It\u2019s a \u201cconnect\u201d timeout, see [the docs](https://example.org/x)."
 )
 
 
@@ -53,5 +53,5 @@ def test_find_quote_prefers_named_passage_and_reports_real_location():
 
 
 def test_normalize_and_display():
-    assert normalize("a b—c") == "a b-c"
+    assert normalize("a\u00a0b\u2014c") == "a b-c"
     assert display_quote("It was [removed in 3.12](../x.html) after") == "It was removed in 3.12 after"

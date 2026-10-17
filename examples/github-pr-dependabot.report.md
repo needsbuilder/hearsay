@@ -37,4 +37,4 @@ Source: <https://pypi.org/pypi/urllib3/json>
 
 ---
 Claims extracted by patterns (198 sentences).
-Calls this run: 1 HTTP (2 cached), 0 Tavily (0 cached), 0 model (0 cached).
+Calls this run: 0 HTTP (3 cached), 0 Tavily (0 cached), 0 model (0 cached).
