@@ -6,7 +6,8 @@ import re
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from .docs_domain import resolve_docs
+from .anchoring import Anchor
+from .docs_domain import DocsTarget, resolve_docs
 from .jury import run_jury
 from .models import Claim, ClaimResult, ClaimType, DecisionPath, Verdict
 from .passages import select_passages
@@ -48,6 +49,34 @@ def _unverifiable(claim: Claim, reason: str, **kw) -> ClaimResult:
     return ClaimResult(claim=claim, verdict=Verdict.UNVERIFIABLE, path=DecisionPath.NONE, reason=reason, **kw)
 
 
+def fetch_pages(ctx: "Context", claim: Claim, target: DocsTarget, notes: list[str]) -> list[tuple[str, str, str]]:
+    """(url, title, markdown) for the official pages about a claim: Tavily Search scoped
+    to the docs domain, then Tavily Extract of the top results as whole pages."""
+    assert ctx.tavily is not None
+    query = docs_query(claim)
+    pages: list[tuple[str, str, str]] = []
+    if target.domains:
+        hits = [h for h in ctx.tavily.search(query, target.domains) if _on_domain(h.url, target.domains)]
+        if not hits:
+            return []
+        top = _prefer_english(hits)[:TOP_PAGES]
+        extracted, failed = ctx.tavily.extract([h.url for h in top])  # whole pages, headings kept
+        texts = {p.url.rstrip("/"): p.text for p in extracted}
+        for h in top:
+            text = texts.get(h.url.rstrip("/"))
+            if text:
+                pages.append((h.url, h.title, text))
+            elif h.content:
+                pages.append((h.url, h.title, f"# {h.title}\n\n{h.content}" if h.title else h.content))
+                notes.append(f"Extract failed for {h.url}; used the search snippet.")
+    else:
+        extracted, failed = ctx.tavily.extract(target.urls)
+        pages = [(p.url, "", p.text) for p in extracted if p.text]
+        if failed:
+            notes.append(f"Extract failed for {', '.join(failed)}.")
+    return pages
+
+
 def check_docs_claim(ctx: "Context", claim: Claim) -> ClaimResult:
     target = resolve_docs(ctx.http, claim)
     if not target.found:
@@ -59,35 +88,21 @@ def check_docs_claim(ctx: "Context", claim: Claim) -> ClaimResult:
     if ctx.llm is None:
         return _unverifiable(claim, "Documentation claims need the jury; model calls are off.", docs_domains=domains, notes=notes)
 
-    query = docs_query(claim)
-    pages: list[tuple[str, str, str]] = []
     try:
-        if target.domains:
-            hits = [h for h in ctx.tavily.search(query, target.domains) if _on_domain(h.url, target.domains)]
-            if not hits:
-                return _unverifiable(
-                    claim, f"Tavily found no pages on {', '.join(target.domains)} for {query!r}.",
-                    docs_domains=domains, notes=notes,
-                )
-            top = _prefer_english(hits)[:TOP_PAGES]
-            extracted, failed = ctx.tavily.extract([h.url for h in top], query)
-            texts = {p.url.rstrip("/"): p.text for p in extracted}
-            for h in top:
-                text = texts.get(h.url.rstrip("/"))
-                if text:
-                    pages.append((h.url, h.title, text))
-                elif h.content:
-                    pages.append((h.url, h.title, h.content))
-                    notes.append(f"Extract failed for {h.url}; used the search snippet.")
-        else:
-            extracted, failed = ctx.tavily.extract(target.urls, query)
-            pages = [(p.url, "", p.text) for p in extracted if p.text]
-            if failed:
-                notes.append(f"Extract failed for {', '.join(failed)}.")
+        pages = fetch_pages(ctx, claim, target, notes)
     except (TavilyBudgetExceeded, TavilyUnavailable) as exc:
         return _unverifiable(claim, str(exc), docs_domains=domains, notes=notes)
+    query = docs_query(claim)
+    if not pages:
+        return _unverifiable(
+            claim, f"Tavily found no pages on {', '.join(domains)} for {query!r}.",
+            docs_domains=domains, notes=notes,
+        )
 
-    passages = select_passages(pages, claim)
+    anchor = Anchor.for_claim(claim)
+    if anchor is not None:
+        notes.append(f"Anchoring: a quote counts only from a passage about {anchor.name}.")
+    passages = select_passages(pages, claim, anchor=anchor)
     if not passages:
         return _unverifiable(
             claim, f"The documentation pages found do not mention the claim's terms ({query!r}).",
@@ -96,7 +111,7 @@ def check_docs_claim(ctx: "Context", claim: Claim) -> ClaimResult:
 
     s = ctx.settings
     assert s.adjudicator_model
-    outcome = run_jury(ctx.llm, s.judge_models, s.adjudicator_model, claim, passages)
+    outcome = run_jury(ctx.llm, s.judge_models, s.adjudicator_model, claim, passages, anchor)
     return ClaimResult(
         claim=claim,
         verdict=outcome.verdict,

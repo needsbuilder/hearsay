@@ -93,16 +93,23 @@ def _detail(r: ClaimResult, include_evidence: bool) -> list[str]:
         lines.append(_blockquote(r.quote))
         lines.append("")
     if r.judges:
-        lines.append("| Judge | Model | Verdict | Stated | Quote found |")
-        lines.append("|---|---|---|---|---|")
+        lines.append("| Judge | Model | Verdict | Stated | Quote found | Anchored |")
+        lines.append("|---|---|---|---|---|---|")
         votes = list(r.judges) + ([r.adjudicator] if r.adjudicator else [])
         for i, v in enumerate(votes, 1):
             who = "adjudicator" if v.role == "adjudicator" else f"judge {i}"
             stated = v.stated_verdict.value if v.stated_verdict else "invalid output"
+            anchored = "-" if v.anchored is None else ("yes" if v.anchored else "no")
             lines.append(
-                f"| {who} | `{v.model}` | {v.verdict.value} | {stated} | {'yes' if v.quote_found else 'no'} |"
+                f"| {who} | `{v.model}` | {v.verdict.value} | {stated} | {'yes' if v.quote_found else 'no'} | {anchored} |"
             )
         lines.append("")
+        for i, v in enumerate(votes, 1):
+            if v.error:
+                who = "adjudicator" if v.role == "adjudicator" else f"judge {i}"
+                lines.append(f"- {who}: {v.error}")
+        if any(v.error for v in votes):
+            lines.append("")
     if r.docs_domains:
         lines.append(f"Documentation searched: {', '.join(r.docs_domains)}.")
         lines.append("")
@@ -114,7 +121,7 @@ def _detail(r: ClaimResult, include_evidence: bool) -> list[str]:
         lines.append("<details><summary>Evidence shown to the jury</summary>")
         lines.append("")
         for p in r.evidence:
-            lines.append(f"[{p.id}] <{p.url}>")
+            lines.append(f"[{p.id}] <{p.url}>" + (f" ({_cell(' > '.join(p.section), 200)})" if p.section else ""))
             lines.append("")
             lines.append(_blockquote(p.text))
             lines.append("")

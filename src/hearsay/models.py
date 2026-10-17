@@ -98,6 +98,8 @@ class Passage(BaseModel):
     id: int
     url: str
     title: str = ""
+    section: list[str] = Field(default_factory=list)  # heading path, outermost first
+    api_heading: str | None = None  # nearest heading that is an API signature, if any
     text: str
 
 
@@ -108,6 +110,7 @@ class JudgeVote(BaseModel):
     stated_verdict: Verdict | None = None  # what the model said; None if its output was invalid
     quote: str | None = None
     quote_found: bool = False
+    anchored: bool | None = None  # passage names the claim's symbol; None if not checked
     url: str | None = None
     reasoning: str = ""
     error: str | None = None

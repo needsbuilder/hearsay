@@ -7,7 +7,8 @@
 - Tavily answers are only ever copied from the development cache, which
   real `hearsay check` runs filled. Network access to Tavily is blocked
   here, so recording never spends Tavily credits.
-- Large registry responses are trimmed to the fields Hearsay reads; the
+- Large registry responses are trimmed to the fields Hearsay reads, and
+  extracted pages over 1 MB (Node's single-page all.html) are emptied; the
   stored entry is marked "trimmed": true.
 """
 
@@ -36,7 +37,19 @@ from hearsay.tavily import TavilyClient  # noqa: E402
 INFO_KEYS = ("name", "version", "license", "license_expression", "classifiers", "home_page", "docs_url", "project_urls")
 
 
+MAX_PAGE_CHARS = 1_000_000
+
+
 def trim(namespace: str, request: dict, response: dict) -> dict:
+    if namespace == "tavily" and request["url"].endswith("/extract") and isinstance(response, dict):
+        results = (response.get("data") or {}).get("results") or []
+        if any(len(r.get("raw_content") or "") > MAX_PAGE_CHARS for r in results):
+            data = dict(response["data"])
+            data["results"] = [
+                {**r, "raw_content": ""} if len(r.get("raw_content") or "") > MAX_PAGE_CHARS else r for r in results
+            ]
+            return {"status": response["status"], "data": data, "trimmed": True}
+        return response
     if namespace != "http" or not isinstance(response, dict) or response.get("status") != 200:
         return response
     url, data = request["url"], response["data"]

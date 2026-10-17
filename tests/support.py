@@ -99,6 +99,14 @@ DOCS_CLAIMS = {
         statement="GitHub Actions allows at most 256 jobs per workflow run in a matrix.",
         subject="GitHub Actions",
     ),
+    "fs_rm": dict(
+        kind="api_behavior",
+        statement="`fs.rm` in Node.js supports a `recursive` option for deleting directories.",
+        ecosystem="npm",
+        symbol="fs.rm",
+        parameter="recursive",
+        subject="Node.js",
+    ),
     "utcnow": dict(
         kind="deprecated",
         statement="datetime.utcnow() is deprecated since Python 3.12.",

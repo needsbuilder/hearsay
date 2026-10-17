@@ -56,18 +56,28 @@ def quote_problem(quote: str | None, text: str) -> str | None:
     return None
 
 
-def find_quote(quote: str | None, passages: list[Passage], preferred: int | None = None) -> tuple[Passage | None, str | None]:
-    """Locate the passage that contains the quote; prefer the one the judge named."""
+def find_quote_all(
+    quote: str | None, passages: list[Passage], preferred: int | None = None
+) -> tuple[list[Passage], str | None]:
+    """Every passage that contains the quote (the one the judge named first), or the problem."""
     ordered = sorted(passages, key=lambda p: 0 if p.id == preferred else 1)
+    found: list[Passage] = []
     last_problem = "no evidence passages"
     for p in ordered:
         problem = quote_problem(quote, p.text)
         if problem is None:
-            return p, None
+            found.append(p)
+            continue
         last_problem = problem
         if problem == "no quote given" or problem.startswith("quote is shorter"):
-            return None, problem
-    return None, last_problem
+            return [], problem
+    return found, (None if found else last_problem)
+
+
+def find_quote(quote: str | None, passages: list[Passage], preferred: int | None = None) -> tuple[Passage | None, str | None]:
+    """Locate the passage that contains the quote; prefer the one the judge named."""
+    found, problem = find_quote_all(quote, passages, preferred)
+    return (found[0] if found else None), problem
 
 
 def display_quote(quote: str | None) -> str | None:

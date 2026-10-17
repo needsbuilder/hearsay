@@ -77,3 +77,98 @@ def test_passage_selection_keeps_relevant_text_small():
 def test_tavily_chunk_separator_splits_passages():
     pieces = split_passages("First chunk text here. [...] Second chunk text here.")
     assert pieces == ["First chunk text here.", "Second chunk text here."]
+
+
+# ---------------------------------------------------------------- anchoring on recorded pages
+
+from hearsay.anchoring import Anchor  # noqa: E402
+from hearsay.docs import fetch_pages  # noqa: E402
+from hearsay.docs_domain import resolve_docs as _resolve  # noqa: E402
+from hearsay.jury import run_jury  # noqa: E402
+from hearsay.passages import page_windows  # noqa: E402
+
+RMDIR_LINE = "v25.0.0 | Remove `recursive` option."
+RM_RECURSIVE = "`recursive` If `true`, perform a recursive removal."
+
+
+def recorded_windows(name):
+    """Windows of the pages recorded for a docs claim (Tavily Search + Extract replayed)."""
+    ctx = fixture_context()
+    c = docs_claim(name)
+    pages = fetch_pages(ctx, c, _resolve(ctx.http, c), [])
+    assert ctx.usage.tavily_cache_hits == 2 and ctx.usage.tavily_calls == 0
+    return c, [w for url, title, text in pages for w in page_windows(url, title, text)]
+
+
+def pick(windows, api_heading_start, text_part):
+    w = next(w for w in windows if (w.api_heading or "").startswith(api_heading_start) and text_part in w.text)
+    return w
+
+
+def test_fs_rm_old_failure_is_no_longer_contradicted():
+    # The stand-in's earlier failure, replayed: one judge cites fs.rm, one judge and the
+    # adjudicator cite the fs.rmdir version history. The rmdir passage is in the evidence.
+    c, windows = recorded_windows("fs_rm")
+    rmdir = pick(windows, "fs.rmdir(", RMDIR_LINE)
+    rm = pick(windows, "fs.rm(", "perform a recursive removal")
+    passages = [rmdir.as_passage(1), rm.as_passage(2)]
+    assert "use `fs.rm` instead" in rmdir.text  # the rmdir text even names fs.rm: the heading decides
+    llm = FakeLLM(
+        {
+            "judge-a": [judge_reply("supported", RM_RECURSIVE)],
+            "judge-b": [judge_reply("contradicted", RMDIR_LINE)],
+            "big": [judge_reply("contradicted", RMDIR_LINE)],
+        }
+    )
+    out = run_jury(llm, ["judge-a", "judge-b"], "big", c, passages, Anchor.for_claim(c))
+    assert out.verdict == Verdict.UNVERIFIABLE  # the adjudicator's only quote is not about fs.rm
+    assert out.verdict != Verdict.CONTRADICTED
+    b = out.votes[1]
+    assert b.quote_found and b.anchored is False and b.verdict == Verdict.UNVERIFIABLE
+    assert "anchoring: the quote is in the section for 'fs.rmdir(path[, options], callback)'" in b.error
+    assert out.votes[0].anchored is True and out.votes[0].verdict == Verdict.SUPPORTED
+
+
+def test_fs_rm_end_to_end_is_supported_by_its_own_section():
+    llm = FakeLLM(
+        {
+            "judge-a": [judge_reply("supported", RM_RECURSIVE)],
+            "judge-b": [judge_reply("contradicted", RMDIR_LINE)],
+            "big": [judge_reply("supported", RM_RECURSIVE)],
+        }
+    )
+    ctx = fixture_context(llm=llm, adjudicator="big")
+    r = check_docs_claim(ctx, docs_claim("fs_rm"))
+    assert r.verdict == Verdict.SUPPORTED
+    assert r.source_url == "https://nodejs.org/api/fs.html"
+    anchor = Anchor.for_claim(r.claim)
+    assert anchor.problem(r.evidence[0]) is None  # windows about fs.rm rank first
+    assert any((p.api_heading or "").startswith("fs.rm(") for p in r.evidence)
+    assert all(p.section for p in r.evidence)
+    assert "Section: " in llm.calls[0][1][-1]["content"]  # judges see the heading path
+    assert r.judges[1].verdict == Verdict.UNVERIFIABLE  # rmdir quote: absent or not anchored
+
+
+def test_python_symbol_anchoring_positive_and_negative():
+    c, windows = recorded_windows("utcnow")
+    utcnow = pick(windows, "classmethod datetime.utcnow()", "Deprecated since version 3.12")
+    sibling = pick(windows, "classmethod datetime.utcfromtimestamp(", "Deprecated since version 3.12")
+    now = pick(windows, "classmethod datetime.now(", "preferred over")
+    passages = [utcnow.as_passage(1), sibling.as_passage(2), now.as_passage(3)]
+    anchor = Anchor.for_claim(c)
+
+    good = "Deprecated since version 3.12: Use `datetime.now()` with `UTC` instead."
+    out = run_jury(FakeLLM({"judge-a": [judge_reply("supported", good)], "judge-b": [judge_reply("supported", good)]}),
+                   ["judge-a", "judge-b"], "big", c, passages, anchor)
+    assert out.verdict == Verdict.SUPPORTED and all(v.anchored for v in out.votes)
+
+    # Same deprecation wording, but in the section for a different method.
+    wrong = "Deprecated since version 3.12: Use `datetime.fromtimestamp()` with `UTC` instead."
+    # A different method whose text links to utcnow(): the heading still decides.
+    mention = "This function is preferred over"
+    out = run_jury(FakeLLM({"judge-a": [judge_reply("supported", wrong)], "judge-b": [judge_reply("supported", mention + " [`today()`]")]}),
+                   ["judge-a", "judge-b"], "big", c, passages, anchor)
+    assert out.verdict == Verdict.UNVERIFIABLE
+    a = out.votes[0]
+    assert a.quote_found and a.anchored is False and "utcfromtimestamp" in a.error
+    assert "their quotes came from sections about something else" in out.reason or out.votes[1].anchored is not True

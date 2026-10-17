@@ -102,14 +102,16 @@ class TavilyClient:
         ]
         return hits
 
-    def extract(self, urls: list[str], query: str, *, chunks_per_source: int = 5) -> tuple[list[Page], list[str]]:
-        body = {
-            "urls": urls,
-            "query": query,
-            "chunks_per_source": chunks_per_source,
-            "extract_depth": "basic",
-            "format": "markdown",
-        }
+    def extract(
+        self, urls: list[str], query: str | None = None, *, chunks_per_source: int = 5
+    ) -> tuple[list[Page], list[str]]:
+        """Page text as Markdown. Without `query` the whole page comes back, headings
+        included, which Hearsay needs to tie each passage to its section. With
+        `query`, Tavily returns only its top-ranked chunks, joined by [...]."""
+        body: dict = {"urls": urls, "extract_depth": "basic", "format": "markdown"}
+        if query is not None:
+            body["query"] = query
+            body["chunks_per_source"] = chunks_per_source
         data = self._post("extract", body)
         pages = [Page(url=r.get("url", ""), text=r.get("raw_content") or "") for r in data.get("results") or []]
         failed = [f.get("url", "") for f in data.get("failed_results") or []]
