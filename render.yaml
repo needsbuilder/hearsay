@@ -1,0 +1,42 @@
+# Render Blueprint for the web demo (free web service, Docker).
+# Secrets use `sync: false`: Render asks for them when the Blueprint is created.
+services:
+  - type: web
+    name: hearsay
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: HEARSAY_LLM_API_KEY
+        sync: false
+      - key: HEARSAY_LLM_BASE_URL
+        value: https://api.tokenfactory.nebius.com/v1/
+      - key: HEARSAY_EXTRACT_MODEL
+        sync: false
+      - key: HEARSAY_JUDGE_MODELS
+        sync: false
+      - key: HEARSAY_ADJUDICATOR_MODEL
+        sync: false
+      # Demo limits (see README, "Web demo").
+      - key: HEARSAY_TAVILY_MAX_CALLS
+        value: "20"
+      - key: HEARSAY_WEB_TAVILY_DAILY_CAP
+        value: "40"
+      - key: HEARSAY_WEB_RATE_LIMIT
+        value: "6"
+      - key: HEARSAY_WEB_RATE_WINDOW
+        value: "600"
+      - key: HEARSAY_WEB_MAX_CHARS
+        value: "8000"
+      - key: HEARSAY_WEB_MAX_CONCURRENT
+        value: "2"
+      # Render's proxy sets X-Forwarded-For; use it for the per-address limit.
+      - key: HEARSAY_WEB_TRUST_FORWARDED
+        value: "true"
+      - key: HEARSAY_WEB_REPO_URL
+        sync: false

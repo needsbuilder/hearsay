@@ -1,0 +1,13 @@
+# Only pyproject.toml, uv.lock, README.md, LICENSE and src/ are needed.
+.git
+.venv
+.env
+.env.*
+.hearsay-cache
+.pytest_cache
+**/__pycache__
+bench
+tests
+docs
+examples
+dev
