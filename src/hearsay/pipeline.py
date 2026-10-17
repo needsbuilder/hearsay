@@ -179,6 +179,7 @@ def check(
         claims = add_missed_pins(claims, text)
     else:
         claims, info = extract_with_patterns(text)
+        claims = order_by_position(claims, text)
     ctx.say(f"{len(claims)} claims")
     return check_claims(claims, context=ctx, extraction=info)
 
@@ -198,9 +199,19 @@ def add_missed_pins(claims: list[Claim], text: str) -> list[Claim]:
             continue
         covered.add(key)
         out.append(pin)
-    for i, c in enumerate(out, 1):
+    return order_by_position(out, text)
+
+
+def order_by_position(claims: list[Claim], text: str) -> list[Claim]:
+    """Sort claims by where their source sentence appears in the input and renumber them."""
+    def position(c: Claim) -> int:
+        pos = text.find(c.source_sentence)
+        return pos if pos >= 0 else len(text)
+
+    ordered = sorted(claims, key=position)
+    for i, c in enumerate(ordered, 1):
         c.id = f"c{i}"
-    return out
+    return ordered
 
 
 def stderr_progress(message: str) -> None:

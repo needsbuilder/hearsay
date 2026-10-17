@@ -154,6 +154,7 @@ _FLIPPED_TYPES = {
     ClaimType.FIXES_VULNERABILITY,
     ClaimType.AFFECTED_BY_VULNERABILITY,
     ClaimType.LICENSE_IS,
+    ClaimType.DEPRECATED,  # npm's deprecated field answers package-level claims
 }
 
 
@@ -232,8 +233,12 @@ def parse_claims(data: dict, sentences: list[str], index_map: dict[int, int]) ->
                 claim.source_sentence = sentences[others[0]]
                 grounding = []
         errors.extend(grounding)
-        if claim.type in _FLIPPED_TYPES and not claim.negated and _NEGATION.search(claim.statement):
-            errors.append("the statement is negative, so negated must be true")
+        if claim.type in _FLIPPED_TYPES:
+            negative = bool(_NEGATION.search(claim.statement))
+            if negative and not claim.negated:
+                errors.append("the statement is negative, so negated must be true")
+            elif claim.negated and not negative:
+                errors.append("the statement is positive, so negated must be false")
         if errors:
             out.rejected.append(RejectedClaim(raw=raw, errors=errors))
             continue

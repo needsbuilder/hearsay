@@ -1,0 +1,92 @@
+{
+  "hearsay_version": "0.1.0",
+  "totals": {
+    "claims": 2,
+    "supported": 2,
+    "contradicted": 0,
+    "unverifiable": 0
+  },
+  "results": [
+    {
+      "claim": {
+        "id": "c1",
+        "type": "version_exists",
+        "statement": "urllib3 2.1.0 is a published release.",
+        "source_sentence": "build(deps): bump urllib3 from 2.1.0 to 2.8.0",
+        "ecosystem": "pypi",
+        "package": "urllib3",
+        "version": "2.1.0",
+        "vulnerability_id": null,
+        "license": null,
+        "symbol": null,
+        "parameter": null,
+        "since_version": null,
+        "subject": null,
+        "negated": false,
+        "origin": "pattern"
+      },
+      "verdict": "supported",
+      "path": "registry",
+      "source_url": "https://pypi.org/pypi/urllib3/json",
+      "quote": "releases[\"2.1.0\"] is present",
+      "reason": "urllib3 2.1.0 is published on PyPI.",
+      "judges": [],
+      "adjudicator": null,
+      "docs_domains": [],
+      "evidence": [],
+      "notes": []
+    },
+    {
+      "claim": {
+        "id": "c2",
+        "type": "version_exists",
+        "statement": "urllib3 2.8.0 is a published release.",
+        "source_sentence": "build(deps): bump urllib3 from 2.1.0 to 2.8.0",
+        "ecosystem": "pypi",
+        "package": "urllib3",
+        "version": "2.8.0",
+        "vulnerability_id": null,
+        "license": null,
+        "symbol": null,
+        "parameter": null,
+        "since_version": null,
+        "subject": null,
+        "negated": false,
+        "origin": "pattern"
+      },
+      "verdict": "supported",
+      "path": "registry",
+      "source_url": "https://pypi.org/pypi/urllib3/json",
+      "quote": "releases[\"2.8.0\"] is present",
+      "reason": "urllib3 2.8.0 is published on PyPI.",
+      "judges": [],
+      "adjudicator": null,
+      "docs_domains": [],
+      "evidence": [],
+      "notes": []
+    }
+  ],
+  "extraction": {
+    "method": "patterns",
+    "model": null,
+    "sentences": 198,
+    "rejected": [],
+    "errors": []
+  },
+  "models": {
+    "llm_base_url": null,
+    "extract_model": null,
+    "judge_models": [],
+    "adjudicator_model": null
+  },
+  "usage": {
+    "http_requests": 1,
+    "http_cache_hits": 2,
+    "tavily_calls": 0,
+    "tavily_cache_hits": 0,
+    "llm_calls": 0,
+    "llm_cache_hits": 0
+  },
+  "input_title": "gesiscss/gesis_surf_backend#67: build(deps): bump urllib3 from 2.1.0 to 2.8.0",
+  "input_url": "https://github.com/gesiscss/gesis_surf_backend/pull/67"
+}

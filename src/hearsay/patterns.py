@@ -29,6 +29,11 @@ LICENSE = re.compile(
     r"|(?P<b>MIT|Apache[- ]2\.0|BSD[- ]3[- ]Clause|ISC|(?:L|A)?GPL[- ]?v?[23])[- ]licen[sc]ed",
     re.I,
 )
+# Dependabot and Renovate: "Bumps [urllib3](https://...) from 2.1.0 to 2.8.0"
+BUMP = re.compile(
+    rf"\bbump(?:s|ed)?\s+\[?`?(?P<pkg>{NAME})`?\]?(?:\([^)]*\))?\s+from\s+(?P<a>{VERSION})\s+to\s+(?P<b>{VERSION})",
+    re.I,
+)
 CODE_SPAN = re.compile(r"`([^`\s]+)`")
 DEPRECATED = re.compile(r"\b(?:is|has been|was)\s+deprecated\b", re.I)
 FIX_WORDS = re.compile(r"\b(fix|fixes|fixed|patch|patches|patched|resolve[sd]?|address(?:es|ed)?|remediates?)\b", re.I)
@@ -99,6 +104,15 @@ def extract_with_patterns(text: str, *, pins_only: bool = False) -> tuple[list[C
                 elif re.fullmatch(NAME, arg):
                     claims.append(_claim(ClaimType.PACKAGE_EXISTS, s, install_eco, package=arg,
                                          statement=f"{arg} is a package on {_reg(install_eco)}."))
+
+        for m in BUMP.finditer(s):
+            pkg = m.group("pkg")
+            for ver in (m.group("a").lstrip("v"), m.group("b").lstrip("v")):
+                if (pkg, ver) in used_pairs:
+                    continue
+                used_pairs.add((pkg, ver))
+                claims.append(_claim(ClaimType.VERSION_EXISTS, s, eco, package=pkg, version=ver,
+                                     statement=f"{pkg} {ver} is a published release."))
 
         if pins_only:
             for pkg, ver in pairs:

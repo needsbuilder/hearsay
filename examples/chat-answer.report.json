@@ -1,0 +1,396 @@
+{
+  "hearsay_version": "0.1.0",
+  "totals": {
+    "claims": 5,
+    "supported": 5,
+    "contradicted": 0,
+    "unverifiable": 0
+  },
+  "results": [
+    {
+      "claim": {
+        "id": "c1",
+        "type": "other_external",
+        "statement": "GitHub Actions allows at most 256 jobs per workflow run in a matrix.",
+        "source_sentence": "You can keep everything in one workflow: GitHub Actions allows at most 256 jobs per workflow run in a matrix.",
+        "ecosystem": null,
+        "package": null,
+        "version": null,
+        "vulnerability_id": null,
+        "license": null,
+        "symbol": null,
+        "parameter": null,
+        "since_version": null,
+        "subject": "GitHub Actions",
+        "negated": false,
+        "origin": "llm"
+      },
+      "verdict": "supported",
+      "path": "jury",
+      "source_url": "https://docs.github.com/en/actions/reference/limits",
+      "quote": "A job matrix can generate a maximum of 256 jobs per workflow run. This limit applies to both GitHub-hosted and self-hosted runners.",
+      "reason": "All 2 judges agree. The excerpt from [1] states the limit is 256 jobs per workflow run and applies to both GitHub-hosted and self-hosted runners. The claim specifies at most 256 jobs per workflow run, which matches exactly with the information provided in the excerpt.",
+      "judges": [
+        {
+          "model": "qwen2.5:3b",
+          "role": "judge",
+          "verdict": "supported",
+          "stated_verdict": "supported",
+          "quote": "A job matrix can generate a maximum of 256 jobs per workflow run. This limit applies to both GitHub-hosted and self-hosted runners.",
+          "quote_found": true,
+          "url": "https://docs.github.com/en/actions/reference/limits",
+          "reasoning": "The excerpt from [1] states the limit is 256 jobs per workflow run and applies to both GitHub-hosted and self-hosted runners. The claim specifies at most 256 jobs per workflow run, which matches exactly with the information provided in the excerpt.",
+          "error": null
+        },
+        {
+          "model": "qwen2.5:7b",
+          "role": "judge",
+          "verdict": "supported",
+          "stated_verdict": "supported",
+          "quote": "A matrix will generate a maximum of 256 jobs per workflow run. This limit applies to both GitHub-hosted and self-hosted runners.",
+          "quote_found": true,
+          "url": "https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions",
+          "reasoning": "The excerpt from the first link directly states that 'A matrix strategy can generate a maximum of 256 jobs per workflow run.' This matches the claim exactly.",
+          "error": null
+        }
+      ],
+      "adjudicator": null,
+      "docs_domains": [
+        "docs.github.com"
+      ],
+      "evidence": [
+        {
+          "id": 1,
+          "url": "https://docs.github.com/en/actions/reference/limits",
+          "title": "Actions limits - GitHub Docs",
+          "text": "| Limit category | Limit | Threshold | Description | Can GitHub Support increase? |\n ---  --- \n| Workflow execution limit | Workflow run time | 35 days / workflow run | If a workflow run reaches this limit, the workflow run is cancelled. This period includes execution duration, and time spent on waiting and approval. |\n| Workflow execution limit | Gate approval time | 30 days | A workflow may wait for up to 30 days on environment approvals. |\n| Workflow execution limit | Job Matrix | 256 jobs / workflow run | A job matrix can generate a maximum of 256 jobs per workflow run. This limit applies to both GitHub-hosted and self-hosted runners. |"
+        },
+        {
+          "id": 2,
+          "url": "https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions",
+          "title": "Workflow syntax for GitHub Actions - GitHub Docs",
+          "text": "## `jobs.<job_id>.strategy`\n\nUse `jobs.<job_id>.strategy` to use a matrix strategy for your jobs. A matrix strategy lets you use variables in a single job definition to automatically create multiple job runs that are based on the combinations of the variables. For example, you can use a matrix strategy to test your code in multiple versions of a language or on multiple operating systems. For more information, see Running variations of jobs in a workflow.\n\n## `jobs.<job_id>.strategy.matrix`\n\nUse `jobs.<job_id>.strategy.matrix` to define a matrix of different job configurations. For more information, see Running variations of jobs in a workflow.\n\nA matrix will generate a maximum of 256 jobs per workflow run. This limit applies to both GitHub-hosted and self-hosted runners."
+        },
+        {
+          "id": 3,
+          "url": "https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions",
+          "title": "Workflow syntax for GitHub Actions - GitHub Docs",
+          "text": "### Example of `cache-mode`\n\n```yaml\ncache-mode: read\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v6\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: npm-${{ hashFiles('/package-lock.json') }}\n```\n\n## `jobs`\n\nA workflow run is made up of one or more `jobs`, which run in parallel by default. To run jobs sequentially, you can define dependencies on other jobs using the `jobs.<job_id>.needs` keyword.\n\nEach job runs in a runner environment specified by `runs-on`.\n\nYou can run an unlimited number of jobs as long as you are within the workflow usage limits. For more information, see Billing and usage for GitHub-hosted runners and Actions limits for self-hosted runner usage limits."
+        },
+        {
+          "id": 4,
+          "url": "https://docs.github.com/actions/reference/workflows-and-actions/contexts",
+          "title": "Contexts reference - GitHub Docs",
+          "text": "| `jobs..defaults.run` | `github, needs, strategy, matrix, env, vars, inputs` | None |\n| `jobs..env` | `github, needs, strategy, matrix, vars, secrets, inputs` | None |\n| `jobs..environment` | `github, needs, strategy, matrix, vars, inputs` | None |\n| `jobs..environment.url` | `github, needs, strategy, matrix, job, runner, env, vars, steps, inputs` | None |\n| `jobs..if` | `github, needs, vars, inputs` | `always, cancelled, success, failure` |\n| `jobs..name` | `github, needs, strategy, matrix, vars, inputs` | None |\n| `jobs..outputs.` | `github, needs, strategy, matrix, job, runner, env, vars, secrets, steps, inputs` | None |\n| `jobs..runs-on` | `github, needs, strategy, matrix, vars, inputs` | None |\n| `jobs..secrets.` | `github, needs, strategy, matrix, secrets, inputs, vars` | None |"
+        },
+        {
+          "id": 5,
+          "url": "https://docs.github.com/actions/reference/workflows-and-actions/contexts",
+          "title": "Contexts reference - GitHub Docs",
+          "text": "| `jobs..steps.name` | `github, needs, strategy, matrix, job, runner, env, vars, secrets, steps, inputs` | `hashFiles` |\n| `jobs..steps.run` | `github, needs, strategy, matrix, job, runner, env, vars, secrets, steps, inputs` | `hashFiles` |\n| `jobs..steps.timeout-minutes` | `github, needs, strategy, matrix, job, runner, env, vars, secrets, steps, inputs` | `hashFiles` |\n| `jobs..steps.with` | `github, needs, strategy, matrix, job, runner, env, vars, secrets, steps, inputs` | `hashFiles` |\n| `jobs..steps.working-directory` | `github, needs, strategy, matrix, job, runner, env, vars, secrets, steps, inputs` | `hashFiles` |\n| `jobs..strategy` | `github, needs, vars, inputs` | None |\n| `jobs..timeout-minutes` | `github, needs, strategy, matrix, vars, inputs` | None |"
+        },
+        {
+          "id": 6,
+          "url": "https://docs.github.com/actions/reference/workflows-and-actions/contexts",
+          "title": "Contexts reference - GitHub Docs",
+          "text": "| `strategy.job-total` | `number` | The total number of jobs in the matrix. Note: This number is not a zero-based number. For example, for a matrix with four jobs, the value of `job-total` is `4`. |\n| `strategy.max-parallel` | `number` | The maximum number of jobs that can run simultaneously when using a `matrix` job strategy. For more information, see Workflow syntax for GitHub Actions. |"
+        }
+      ],
+      "notes": [
+        "Documentation source: curated map: 'github'."
+      ]
+    },
+    {
+      "claim": {
+        "id": "c2",
+        "type": "deprecated",
+        "statement": "The `left-pad` package is deprecated on npm.",
+        "source_sentence": "For the string helper, the `left-pad` package is deprecated on npm, so use `String.prototype.padStart()` instead.",
+        "ecosystem": "npm",
+        "package": "left-pad",
+        "version": null,
+        "vulnerability_id": null,
+        "license": null,
+        "symbol": null,
+        "parameter": null,
+        "since_version": null,
+        "subject": null,
+        "negated": false,
+        "origin": "llm"
+      },
+      "verdict": "supported",
+      "path": "registry",
+      "source_url": "https://registry.npmjs.org/left-pad",
+      "quote": "versions[\"1.3.0\"].deprecated: \"use String.prototype.padStart()\"",
+      "reason": "npm marks left-pad 1.3.0 as deprecated.",
+      "judges": [],
+      "adjudicator": null,
+      "docs_domains": [],
+      "evidence": [],
+      "notes": []
+    },
+    {
+      "claim": {
+        "id": "c3",
+        "type": "api_behavior",
+        "statement": "`Array.prototype.at()` accepts negative integers, which count back from the last element.",
+        "source_sentence": "`Array.prototype.at()` accepts negative integers, which count back from the last element.",
+        "ecosystem": null,
+        "package": null,
+        "version": null,
+        "vulnerability_id": null,
+        "license": null,
+        "symbol": "Array.prototype.at()",
+        "parameter": "negative integers",
+        "since_version": null,
+        "subject": "JavaScript",
+        "negated": false,
+        "origin": "llm"
+      },
+      "verdict": "supported",
+      "path": "adjudicator",
+      "source_url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/at",
+      "quote": "The `at()` method of `Array` instances takes an integer value and returns the item at that index, allowing for positive and negative integers. Negative integers count back from the last item in the array.",
+      "reason": "Judges disagreed (qwen2.5:3b: unverifiable, qwen2.5:7b: supported); the adjudicator decided supported. Both excerpt [1] and excerpt [6] confirm that Array.prototype.at() accepts negative integers to count back from the last element of an array, which matches the claim.",
+      "judges": [
+        {
+          "model": "qwen2.5:3b",
+          "role": "judge",
+          "verdict": "unverifiable",
+          "stated_verdict": "supported",
+          "quote": "const arrayLike = { length: 2, 0: \"a\", 1: \"b\", 2: \"c\" // ignored by at() since length is 2 }; console.log(Array.prototype.at.call(arrayLike, 0)); // \"a\" console.log(Array.prototype.at.call(arrayLike, 2)); // undefined",
+          "quote_found": false,
+          "url": null,
+          "reasoning": "The claim states that Array.prototype.at() accepts negative integers, which count back from the last element. Excerpt [1] and excerpt [6] both confirm this: they state that at() can accept negative integers to count back from the end of an array.",
+          "error": "quote does not appear in the evidence; the supported verdict was discarded"
+        },
+        {
+          "model": "qwen2.5:7b",
+          "role": "judge",
+          "verdict": "supported",
+          "stated_verdict": "supported",
+          "quote": "The `at()` method of `Array` instances takes an integer value and returns the item at that index, allowing for positive and negative integers. Negative integers count back from the last item in the array.",
+          "quote_found": true,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/at",
+          "reasoning": "The excerpt from the third link explicitly states that `Array.prototype.at()` takes an integer value and returns the item at that index, allowing for positive and negative integers. Negative integers count back from the last item in the array.",
+          "error": null
+        }
+      ],
+      "adjudicator": {
+        "model": "qwen2.5:7b",
+        "role": "adjudicator",
+        "verdict": "supported",
+        "stated_verdict": "supported",
+        "quote": "The `at()` method of `Array` instances takes an integer value and returns the item at that index, allowing for positive and negative integers. Negative integers count back from the last item in the array.",
+        "quote_found": true,
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/at",
+        "reasoning": "Both excerpt [1] and excerpt [6] confirm that Array.prototype.at() accepts negative integers to count back from the last element of an array, which matches the claim.",
+        "error": null
+      },
+      "docs_domains": [
+        "developer.mozilla.org"
+      ],
+      "evidence": [
+        {
+          "id": 1,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array",
+          "title": "Array - JavaScript | MDN",
+          "text": "## Instance methods\n\n`Array.prototype.at()`\n:   Returns the array item at the given index. Accepts negative integers, which count back from the last item.\n\n`Array.prototype.concat()`\n:   Returns a new array that is the calling array joined with other array(s) and/or value(s).\n\n`Array.prototype.copyWithin()`\n:   Copies a sequence of array elements within an array.\n\n`Array.prototype.entries()`\n:   Returns a new array iterator object that contains the key/value pairs for each index in an array.\n\n`Array.prototype.every()`\n:   Returns `false` if it finds an element in the array that does not satisfy the provided testing function. Otherwise, it returns `true`.\n\n`Array.prototype.fill()`\n:   Fills all the elements of an array from a start index to an end index with a static value."
+        },
+        {
+          "id": 2,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray",
+          "title": "TypedArray - JavaScript | MDN",
+          "text": "`TypedArray.prototype.BYTES_PER_ELEMENT`\n:   Returns a number value of the element size for the different `TypedArray` objects.\n\n## Instance methods\n\nThese methods are defined on the `TypedArray` prototype object and are thus shared by all `TypedArray` subclass instances.\n\n`TypedArray.prototype.at()`\n:   Takes an integer value and returns the item at that index. This method allows for negative integers, which count back from the last item.\n\n`TypedArray.prototype.copyWithin()`\n:   Copies a sequence of array elements within the array. See also `Array.prototype.copyWithin()`.\n\n`TypedArray.prototype.entries()`\n:   Returns a new array iterator object that contains the key/value pairs for each index in the array. See also `Array.prototype.entries()`."
+        },
+        {
+          "id": 3,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/at",
+          "title": "Array.prototype.at() - JavaScript | MDN",
+          "text": "Skip to search\n\nToggle sidebar\n\n1. Web\n2. JavaScript\n3. Reference\n4. Standard built-in objects\n5. Array\n6. at()\n\nRemember language   Learn more\n\nDeutsch\n English (US)\n Español\n Français\n 日本語\n 한국어\n Português (do Brasil)\n Русский\n 中文 (简体)\n\n# Array.prototype.at()\n\nBaseline\n\nWidely available\n\nThis feature is well established and works across many devices and browser versions. It’s been available across browsers since March 2022.\n\nSee full compatibility\n Learn more\n\nThe `at()` method of `Array` instances takes an integer value and returns the item at that index, allowing for positive and negative integers. Negative integers count back from the last item in the array.\n\n## Try it"
+        },
+        {
+          "id": 4,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array",
+          "title": "Array - JavaScript | MDN",
+          "text": "`Array.prototype.indexOf()`\n:   Returns the first (least) index at which a given element can be found in the calling array.\n\n`Array.prototype.join()`\n:   Returns a new string that is the concatenation of all elements in this array, separated by commas or a specified separator string.\n\n`Array.prototype.keys()`\n:   Returns a new array iterator that contains the keys for each index in the calling array.\n\n`Array.prototype.lastIndexOf()`\n:   Returns the last (greatest) index at which a given element can be found in the calling array, or `-1` if none is found.\n\n`Array.prototype.map()`\n:   Returns a new array containing the results of invoking a function on every element in the calling array.\n\n`Array.prototype.pop()`\n:   Removes the last element from an array and returns that element."
+        },
+        {
+          "id": 5,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray",
+          "title": "TypedArray - JavaScript | MDN",
+          "text": "`TypedArray.prototype.findIndex()`\n:   Returns the first index value in the array that has an element that satisfies a provided testing function, or `-1` if no appropriate element was found. See also `Array.prototype.findIndex()`.\n\n`TypedArray.prototype.findLast()`\n:   Returns the value of the last element in the array that satisfies a provided testing function, or `undefined` if no appropriate element is found. See also `Array.prototype.findLast()`.\n\n`TypedArray.prototype.findLastIndex()`\n:   Returns the index of the last element in the array that satisfies a provided testing function, or `-1` if no appropriate element was found. See also `Array.prototype.findLastIndex()`."
+        },
+        {
+          "id": 6,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/at",
+          "title": "Array.prototype.at() - JavaScript | MDN",
+          "text": "js\n\n```\nconst arrayLike = { length: 2, 0: \"a\", 1: \"b\", 2: \"c\", // ignored by at() since length is 2 }; console.log(Array.prototype.at.call(arrayLike, 0)); // \"a\" console.log(Array.prototype.at.call(arrayLike, 2)); // undefined \n```\n\n## Specifications\n\n| Specification |\n\n| ECMAScript® 2027 Language Specification # sec-array.prototype.at |\n\n## Browser compatibility\n\n## See also\n\nPolyfill of `Array.prototype.at` in `core-js`\")\n es-shims polyfill of `Array.prototype.at`\")\n Indexed collections guide\n `Array`\n `Array.prototype.findIndex()`\n `Array.prototype.indexOf()`\n `Array.prototype.with()`\n `TypedArray.prototype.at()`\n `String.prototype.at()`\n\n## Help improve MDN\n\nLearn how to contribute\n\nThis page was last modified on by MDN contributors."
+        }
+      ],
+      "notes": [
+        "Documentation source: JavaScript built-in 'Array'."
+      ]
+    },
+    {
+      "claim": {
+        "id": "c4",
+        "type": "api_behavior",
+        "statement": "`fs.rm` in Node.js supports a `recursive` option for deleting directories.",
+        "source_sentence": "In Node.js, `fs.rm` supports a `recursive` option for deleting directories.",
+        "ecosystem": "npm",
+        "package": null,
+        "version": null,
+        "vulnerability_id": null,
+        "license": null,
+        "symbol": "fs.rm",
+        "parameter": "recursive",
+        "since_version": null,
+        "subject": "Node.js",
+        "negated": false,
+        "origin": "llm"
+      },
+      "verdict": "supported",
+      "path": "adjudicator",
+      "source_url": "https://nodejs.org/api/fs.html",
+      "quote": "`path` | | `options` There are currently no options exposed. There used to be options for `recursive`, `maxBusyTries`, and `emfileWait` but they were deprecated and removed.",
+      "reason": "Judges disagreed (qwen2.5:3b: contradicted, qwen2.5:7b: supported); the adjudicator decided supported. The claim is supported by excerpt [3] and [6], which state that the `fs.rm(path[, options], callback)` method supports a `recursive: true` option. This contradicts Judge 1's reasoning, as it clearly indicates that `fs.rmdir` does not support this option, but `fs.rm` does.",
+      "judges": [
+        {
+          "model": "qwen2.5:3b",
+          "role": "judge",
+          "verdict": "contradicted",
+          "stated_verdict": "contradicted",
+          "quote": "Using `fs.rmdir(path, { recursive: true })` on a `path` that is a file is no longer permitted and results in an `ENOENT` error on Windows and an `ENOTDIR` error on POSIX.",
+          "quote_found": true,
+          "url": "https://nodejs.org/api/fs.html",
+          "reasoning": "The excerpts indicate that the `recursive` option for `fs.rmdir`, `fs.rmdirSync`, and `fs.promises.rmdir` has been removed, replaced by `fs.rm(path, { recursive: true, force: true })`. This contradicts the claim about the `fs.rm` method supporting a `recursive` option.",
+          "error": null
+        },
+        {
+          "model": "qwen2.5:7b",
+          "role": "judge",
+          "verdict": "supported",
+          "stated_verdict": "supported",
+          "quote": "`path`  |  |\n `options`  There are currently no options exposed. There used to be options for `recursive`, `maxBusyTries`, and `emfileWait` but they were deprecated and removed.",
+          "quote_found": true,
+          "url": "https://nodejs.org/api/fs.html",
+          "reasoning": "The documentation states that the `recursive` option is no longer supported for `fs.rmdir` and `fs.rmdirSync`, but it supports this option for `fs.rm` and `fsPromises.rm`. The claim matches the details in excerpt [3] and [6].",
+          "error": null
+        }
+      ],
+      "adjudicator": {
+        "model": "qwen2.5:7b",
+        "role": "adjudicator",
+        "verdict": "supported",
+        "stated_verdict": "supported",
+        "quote": "`path`  |  |\n `options`  There are currently no options exposed. There used to be options for `recursive`, `maxBusyTries`, and `emfileWait` but they were deprecated and removed.",
+        "quote_found": true,
+        "url": "https://nodejs.org/api/fs.html",
+        "reasoning": "The claim is supported by excerpt [3] and [6], which state that the `fs.rm(path[, options], callback)` method supports a `recursive: true` option. This contradicts Judge 1's reasoning, as it clearly indicates that `fs.rmdir` does not support this option, but `fs.rm` does.",
+        "error": null
+      },
+      "docs_domains": [
+        "nodejs.org"
+      ],
+      "evidence": [
+        {
+          "id": 1,
+          "url": "https://nodejs.org/api/deprecations.html",
+          "title": "Deprecated APIs | Node.js v26.10.0 Documentation",
+          "text": "Type: End-of-Life\n\nThe `fs.rmdir`, `fs.rmdirSync`, and `fs.promises.rmdir` methods used to support a `recursive` option. That option has been removed.\n\nUse `fs.rm(path, { recursive: true, force: true })`, `fs.rmSync(path, { recursive: true, force: true })` or `fs.promises.rm(path, { recursive: true, force: true })` instead.\n\nAn automated migration is available (source):\n\n```\nnpx codemod@latest @nodejs/rmdir npx  codemod@latest @nodejs/rmdir\n\nbash\n\n```\n\n#### DEP0148: Folder mappings in `\"exports\"` (trailing `\"/\"`)#\n\nHistory\n\n| Version | Changes |\n --- |\n| v17.0.0 | End-of-Life. |\n| v16.0.0 | Runtime deprecation. |\n| v15.1.0 | Runtime deprecation for self-referencing imports. |\n| v14.13.0 | Documentation-only deprecation. |\n\nType: End-of-Life"
+        },
+        {
+          "id": 2,
+          "url": "https://nodejs.org/api/fs.html",
+          "title": "File system | Node.js v26.10.0 Documentation",
+          "text": "| Version | Changes |\n --- |\n| v25.0.0 | Remove `recursive` option. |\n| v18.0.0 | Passing an invalid callback to the `callback` argument now throws `ERR_INVALID_ARG_TYPE` instead of `ERR_INVALID_CALLBACK`. |\n| v16.0.0 | Using `fs.rmdir(path, { recursive: true })` on a `path` that is a file is no longer permitted and results in an `ENOENT` error on Windows and an `ENOTDIR` error on POSIX. |\n| v16.0.0 | Using `fs.rmdir(path, { recursive: true })` on a `path` that does not exist is no longer permitted and results in a `ENOENT` error. |\n| v16.0.0 | The `recursive` option is deprecated, using it triggers a deprecation warning. |\n| v14.14.0 | The `recursive` option is deprecated, use `fs.rm` instead. |"
+        },
+        {
+          "id": 3,
+          "url": "https://nodejs.org/api/fs.html",
+          "title": "File system | Node.js v26.10.0 Documentation",
+          "text": "`path`  |  |\n `options`  There are currently no options exposed. There used to be options for `recursive`, `maxBusyTries`, and `emfileWait` but they were deprecated and removed. The `options` argument is still accepted for backwards compatibility but it is not used.\n `callback` \n  + `err`\n\nAsynchronous `rmdir(2)`. No arguments other than a possible exception are given to the completion callback.\n\nUsing `fs.rmdir()` on a file (not a directory) results in an `ENOENT` error on Windows and an `ENOTDIR` error on POSIX.\n\nTo get a behavior similar to the `rm -rf` Unix command, use `fs.rm()` with options `{ recursive: true, force: true }`.\n\n#### `fs.rm(path[, options], callback)`#\n\nAdded in: v14.14.0History"
+        },
+        {
+          "id": 4,
+          "url": "https://nodejs.org/api/fs.html",
+          "title": "File system | Node.js v26.10.0 Documentation",
+          "text": "| Version | Changes |\n --- |\n| v25.0.0 | Remove `recursive` option. |\n| v16.0.0 | Using `fs.rmdirSync(path, { recursive: true })` on a `path` that is a file is no longer permitted and results in an `ENOENT` error on Windows and an `ENOTDIR` error on POSIX. |\n| v16.0.0 | Using `fs.rmdirSync(path, { recursive: true })` on a `path` that does not exist is no longer permitted and results in a `ENOENT` error. |\n| v16.0.0 | The `recursive` option is deprecated, using it triggers a deprecation warning. |\n| v14.14.0 | The `recursive` option is deprecated, use `fs.rmSync` instead. |"
+        },
+        {
+          "id": 5,
+          "url": "https://nodejs.org/api/fs.html",
+          "title": "File system | Node.js v26.10.0 Documentation",
+          "text": "| Version | Changes |\n --- |\n| v25.0.0 | Remove `recursive` option. |\n| v16.0.0 | Using `fsPromises.rmdir(path, { recursive: true })` on a `path` that is a file is no longer permitted and results in an `ENOENT` error on Windows and an `ENOTDIR` error on POSIX. |\n| v16.0.0 | Using `fsPromises.rmdir(path, { recursive: true })` on a `path` that does not exist is no longer permitted and results in a `ENOENT` error. |\n| v16.0.0 | The `recursive` option is deprecated, using it triggers a deprecation warning. |\n| v14.14.0 | The `recursive` option is deprecated, use `fsPromises.rm` instead. |"
+        },
+        {
+          "id": 6,
+          "url": "https://nodejs.org/api/fs.html",
+          "title": "File system | Node.js v26.10.0 Documentation",
+          "text": "`path`  |  |\n `options`  There are currently no options exposed. There used to be options for `recursive`, `maxBusyTries`, and `emfileWait` but they were deprecated and removed. The `options` argument is still accepted for backwards compatibility but it is not used.\n Returns:  Fulfills with `undefined` upon success.\n\nRemoves the directory identified by `path`.\n\nUsing `fsPromises.rmdir()` on a file (not a directory) results in the promise being rejected with an `ENOENT` error on Windows and an `ENOTDIR` error on POSIX.\n\nTo get a behavior similar to the `rm -rf` Unix command, use `fsPromises.rm()` with options `{ recursive: true, force: true }`.\n\n#### `fsPromises.rm(path[, options])`#\n\nAdded in: v14.14.0"
+        }
+      ],
+      "notes": [
+        "Documentation source: Node.js built-in module 'fs'."
+      ]
+    },
+    {
+      "claim": {
+        "id": "c5",
+        "type": "license_is",
+        "statement": "`express` 5.0.0 is MIT licensed.",
+        "source_sentence": "`express` 5.0.0 is published on npm and is MIT licensed.",
+        "ecosystem": "npm",
+        "package": "express",
+        "version": "5.0.0",
+        "vulnerability_id": null,
+        "license": "MIT",
+        "symbol": null,
+        "parameter": null,
+        "since_version": null,
+        "subject": null,
+        "negated": false,
+        "origin": "llm"
+      },
+      "verdict": "supported",
+      "path": "registry",
+      "source_url": "https://api.deps.dev/v3/systems/npm/packages/express/versions/5.0.0",
+      "quote": "licenses: \"MIT\"",
+      "reason": "express 5.0.0 is licensed MIT.",
+      "judges": [],
+      "adjudicator": null,
+      "docs_domains": [],
+      "evidence": [],
+      "notes": []
+    }
+  ],
+  "extraction": {
+    "method": "llm",
+    "model": "qwen2.5:7b",
+    "sentences": 5,
+    "rejected": [],
+    "errors": [
+      "attempt 1 invalid: claim {\"type\": \"deprecated\", \"sentences\": [2], \"statement\": \"The `left-pad` package is deprecated on npm.\", \"ecosystem\": \"npm\", \"package\": \"left-pad\", \"version\": null: the statement is positive, so negated must be false"
+    ]
+  },
+  "models": {
+    "llm_base_url": "http://localhost:11434/v1",
+    "extract_model": "qwen2.5:7b",
+    "judge_models": [
+      "qwen2.5:3b",
+      "qwen2.5:7b"
+    ],
+    "adjudicator_model": "qwen2.5:7b"
+  },
+  "usage": {
+    "http_requests": 0,
+    "http_cache_hits": 4,
+    "tavily_calls": 0,
+    "tavily_cache_hits": 6,
+    "llm_calls": 0,
+    "llm_cache_hits": 10
+  },
+  "input_title": null,
+  "input_url": null
+}

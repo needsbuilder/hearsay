@@ -6,14 +6,14 @@
 |---|---|---|---|---|
 | c1 | **SUPPORTED** | requests 2.31.0 fixes CVE-2023-32681. | advisory | <https://api.osv.dev/v1/vulns/GHSA-j8r2-6x86-q33q> |
 | c2 | **CONTRADICTED** | urllib3 1.26.5 fixes CVE-2023-43804. | advisory | <https://api.osv.dev/v1/vulns/GHSA-v845-jxx5-vc9f> |
-| c3 | **CONTRADICTED** | fastapi 0.200.0 is added. | registry | <https://pypi.org/pypi/fastapi/json> |
-| c4 | **CONTRADICTED** | pydantic-settings-extra is added. | registry | <https://pypi.org/pypi/pydantic-settings-extra/json> |
-| c5 | **SUPPORTED** | lodash 4.17.21 is no longer affected by CVE-2021-23337. | advisory | <https://api.osv.dev/v1/vulns/GHSA-35jh-r3h4-6jhm> |
+| c3 | **SUPPORTED** | lodash 4.17.21 is no longer affected by CVE-2021-23337. | advisory | <https://api.osv.dev/v1/vulns/GHSA-35jh-r3h4-6jhm> |
+| c4 | **CONTRADICTED** | fastapi 0.200.0 is added. | registry | <https://pypi.org/pypi/fastapi/json> |
+| c5 | **CONTRADICTED** | pydantic-settings-extra is added. | registry | <https://pypi.org/pypi/pydantic-settings-extra/json> |
 | c6 | **SUPPORTED** | httpx is BSD-3-Clause licensed. | registry | <https://api.deps.dev/v3/systems/pypi/packages/httpx/versions/0.28.1> |
 | c7 | **CONTRADICTED** | requests is MIT licensed. | registry | <https://api.deps.dev/v3/systems/pypi/packages/requests/versions/2.34.2> |
-| c8 | **SUPPORTED** | datetime.utcnow() is deprecated since Python 3.12. | jury | <https://docs.python.org/3/library/datetime.html> |
-| c9 | **CONTRADICTED** | distutils was removed in Python 3.10. | adjudicator | <https://docs.python.org/3/library/distutils.html> |
-| c10 | **UNVERIFIABLE** | requests.get accepts a max_retries parameter. | adjudicator | - |
+| c8 | **UNVERIFIABLE** | requests.get accepts a max_retries parameter. | adjudicator | - |
+| c9 | **SUPPORTED** | datetime.utcnow() is deprecated since Python 3.12. | jury | <https://docs.python.org/3/library/datetime.html> |
+| c10 | **CONTRADICTED** | distutils was removed in Python 3.10. | adjudicator | <https://docs.python.org/3/library/distutils.html> |
 | c11 | **UNVERIFIABLE** | Stripe refunds accept an idempotency key. | jury | - |
 
 ### c1. SUPPORTED: requests 2.31.0 fixes CVE-2023-32681.
@@ -46,33 +46,7 @@ Source: <https://api.osv.dev/v1/vulns/GHSA-v845-jxx5-vc9f>
 
 - Also consistent: PYSEC-2023-192.
 
-### c3. CONTRADICTED: fastapi 0.200.0 is added.
-
-Claim type `version_exists`, decided by **registry**.
-
-Said in the input:
-> - Added `fastapi==0.200.0` for the new health endpoint.
-
-fastapi has no release 0.200.0 on PyPI (latest is 0.143.3).
-
-Source: <https://pypi.org/pypi/fastapi/json>
-
-> releases has no key "0.200.0"; latest: "0.143.3" (326 releases listed)
-
-### c4. CONTRADICTED: pydantic-settings-extra is added.
-
-Claim type `package_exists`, decided by **registry**.
-
-Said in the input:
-> - Added `pydantic-settings-extra` to parse the nested env settings.
-
-There is no package named 'pydantic-settings-extra' on PyPI.
-
-Source: <https://pypi.org/pypi/pydantic-settings-extra/json>
-
-> PyPI: HTTP 404 for https://pypi.org/pypi/pydantic-settings-extra/json
-
-### c5. SUPPORTED: lodash 4.17.21 is no longer affected by CVE-2021-23337.
+### c3. SUPPORTED: lodash 4.17.21 is no longer affected by CVE-2021-23337.
 
 Claim type `affected_by_vulnerability`, decided by **advisory**.
 
@@ -87,6 +61,32 @@ Source: <https://api.osv.dev/v1/vulns/GHSA-35jh-r3h4-6jhm>
 
 - OSV also links GHSA-r5fr-rjxr-66jc (published 2026-04-01, aliases CVE-2021-23337, CVE-2026-4800, GHSA-35jh-r3h4-6jhm) to CVE-2021-23337, and by that record lodash 4.17.21 is affected: [{"introduced": "4.0.0"}, {"fixed": "4.18.0"}]. Hearsay follows GHSA-35jh-r3h4-6jhm, the record for this id or the earliest one.
 - The claim is negated, so the positive finding (contradicted) becomes supported.
+
+### c4. CONTRADICTED: fastapi 0.200.0 is added.
+
+Claim type `version_exists`, decided by **registry**.
+
+Said in the input:
+> - Added `fastapi==0.200.0` for the new health endpoint.
+
+fastapi has no release 0.200.0 on PyPI (latest is 0.143.3).
+
+Source: <https://pypi.org/pypi/fastapi/json>
+
+> releases has no key "0.200.0"; latest: "0.143.3" (326 releases listed)
+
+### c5. CONTRADICTED: pydantic-settings-extra is added.
+
+Claim type `package_exists`, decided by **registry**.
+
+Said in the input:
+> - Added `pydantic-settings-extra` to parse the nested env settings.
+
+There is no package named 'pydantic-settings-extra' on PyPI.
+
+Source: <https://pypi.org/pypi/pydantic-settings-extra/json>
+
+> PyPI: HTTP 404 for https://pypi.org/pypi/pydantic-settings-extra/json
 
 ### c6. SUPPORTED: httpx is BSD-3-Clause licensed.
 
@@ -118,7 +118,56 @@ Source: <https://api.deps.dev/v3/systems/pypi/packages/requests/versions/2.34.2>
 
 - No version in the claim; checked the latest release, 2.34.2.
 
-### c8. SUPPORTED: datetime.utcnow() is deprecated since Python 3.12.
+### c8. UNVERIFIABLE: requests.get accepts a max_retries parameter.
+
+Claim type `parameter_exists`, decided by **adjudicator**.
+
+Said in the input:
+> - `requests.get` also accepts a `max_retries` parameter, so the custom adapter is gone.
+
+Judges disagreed (qwen2.5:3b: unverifiable, qwen2.5:7b: contradicted); the adjudicator decided unverifiable. The claim states that `requests.get` accepts a `max_retries` parameter, but none of the excerpts mention such a parameter directly for `requests.get`. However, excerpt [5] mentions `max_retries`, which is relevant to the `get` method context.
+
+| Judge | Model | Verdict | Stated | Quote found |
+|---|---|---|---|---|
+| judge 1 | `qwen2.5:3b` | unverifiable | unverifiable | no |
+| judge 2 | `qwen2.5:7b` | contradicted | contradicted | yes |
+| adjudicator | `qwen2.5:7b` | unverifiable | unverifiable | yes |
+
+Documentation searched: requests.readthedocs.io.
+
+- Documentation source: PyPI metadata for requests: Documentation https://requests.readthedocs.io.
+- Extract failed for https://requests.readthedocs.io/_/downloads/en/stable/pdf; used the search snippet.
+- Extract failed for https://requests.readthedocs.io/en/latest/api; used the search snippet.
+
+<details><summary>Evidence shown to the jury</summary>
+
+[1] <https://requests.readthedocs.io/en/master/user/advanced>
+
+> We will begin with the verb most commonly used: GET. HTTP GET is an idempotent method that returns a resource from a given URL. As a result, it is the verb you ought to use when attempting to retrieve data from a web location. An example usage would be attempting to get information about a specific commit from GitHub. Suppose we wanted commit `a050faf` on Requests. We would get it like so: ``` >>> import requests>>> r = requests. get(' ``` We should confirm that GitHub responded correctly. If it has, we want to work out what type of content it is. Do this like so: ``` >>> if r. status_code == requests. codes. ok:... print(r. headers['content-type'])...application/json; charset=utf-8 ```
+
+[2] <https://requests.readthedocs.io/en/master/user/advanced>
+
+> All values that are contained within a session are directly available to you. See the Session API Docs to learn more. ## Request and Response Objects¶ Whenever a call is made to `requests.get()` and friends, you are doing two major things. First, you are constructing a `Request` object which will be sent off to a server to request or query some resource. Second, a `Response` object is generated once Requests gets a response back from the server. The `Response` object contains all of the information returned by the server and also contains the `Request` object you created originally. Here is a simple request to get some very important information from Wikipedia’s servers: ``` >>> r = requests. get(' ``` If we want to access the headers the server sent back to us, we do this:
+
+[3] <https://requests.readthedocs.io/en/master/user/advanced>
+
+> ``` r = requests. get(' timeout =(3.05, 27)) ``` If the remote server is very slow, you can tell Requests to wait forever for a response, by passing None as a timeout value and then retrieving a cup of coffee. ``` r = requests. get(' timeout = None) ``` Note The connect timeout applies to each connection attempt to an IP address. If multiple addresses exist for a domain name, the underlying `urllib3` will try each address sequentially until one successfully connects. This may lead to an effective total connection timeout multiple times longer than the specified time, e.g. an unresponsive server having both IPv4 and IPv6 addresses will have its perceived timeout doubled, so take that into account when setting the connection timeout. Note
+
+[4] <https://requests.readthedocs.io/en/master/user/advanced>
+
+> ``` from urllib3.util import Retry from requests import Session from requests.adapters import HTTPAdapter s = Session() retries = Retry(total = 3, backoff_factor =0.1, status_forcelist =[502, 503, 504], allowed_methods ={'POST'},) s. mount(' HTTPAdapter(max_retries = retries)) ``` ## Blocking Or Non-Blocking?¶ With the default Transport Adapter in place, Requests does not provide any kind of non-blocking IO. The `Response.content` property will block until the entire response has been downloaded. If you require more granularity, the streaming features of the library (see Streaming Requests) allow you to retrieve smaller quantities of the response at a time. However, these calls will still block.
+
+[5] <https://requests.readthedocs.io/_/downloads/en/stable/pdf>
+
+> GetKwargs]) → Response. Sends a GET request. Parameters. • url – URL ... max_retries – The maximum number of retries each connection should
+
+[6] <https://requests.readthedocs.io/en/master/user/advanced>
+
+> ``` import ssl from urllib3.poolmanager import PoolManager from requests.adapters import HTTPAdapter class Ssl3HttpAdapter(HTTPAdapter): """"Transport adapter" that allows us to use SSLv3.""" def init_poolmanager(self, connections, maxsize, block = False): self. poolmanager = PoolManager(num_pools = connections, maxsize = maxsize, block = block, ssl_version = ssl. PROTOCOL_SSLv3) ``` ### Example: Automatic Retries¶ By default, Requests does not retry failed connections. However, it is possible to implement automatic retries with a powerful array of features, including backoff, within a Requests `Session` using the urllib3.util.Retry class:
+
+</details>
+
+### c9. SUPPORTED: datetime.utcnow() is deprecated since Python 3.12.
 
 Claim type `deprecated`, decided by **jury**.
 
@@ -168,7 +217,7 @@ Documentation searched: docs.python.org.
 
 </details>
 
-### c9. CONTRADICTED: distutils was removed in Python 3.10.
+### c10. CONTRADICTED: distutils was removed in Python 3.10.
 
 Claim type `deprecated`, decided by **adjudicator**.
 
@@ -216,55 +265,6 @@ Documentation searched: docs.python.org.
 [6] <https://docs.python.org/3/whatsnew/3.12.html>
 
 > ### hashlib¶ Remove the pure Python implementation of `hashlib`’s `hashlib.pbkdf2_hmac()`, deprecated in Python 3.10. Python 3.10 and newer requires OpenSSL 1.1.1 (PEP 644): this OpenSSL version provides a C implementation of `pbkdf2_hmac()` which is faster. (Contributed by Victor Stinner in gh-94199.) ### importlib¶ Many previously deprecated cleanups in `importlib` have now been completed:
-
-</details>
-
-### c10. UNVERIFIABLE: requests.get accepts a max_retries parameter.
-
-Claim type `parameter_exists`, decided by **adjudicator**.
-
-Said in the input:
-> - `requests.get` also accepts a `max_retries` parameter, so the custom adapter is gone.
-
-Judges disagreed (qwen2.5:3b: unverifiable, qwen2.5:7b: contradicted); the adjudicator decided unverifiable. The claim states that `requests.get` accepts a `max_retries` parameter, but none of the excerpts mention such a parameter directly for `requests.get`. However, excerpt [5] mentions `max_retries`, which is relevant to the `get` method context.
-
-| Judge | Model | Verdict | Stated | Quote found |
-|---|---|---|---|---|
-| judge 1 | `qwen2.5:3b` | unverifiable | unverifiable | no |
-| judge 2 | `qwen2.5:7b` | contradicted | contradicted | yes |
-| adjudicator | `qwen2.5:7b` | unverifiable | unverifiable | yes |
-
-Documentation searched: requests.readthedocs.io.
-
-- Documentation source: PyPI metadata for requests: Documentation https://requests.readthedocs.io.
-- Extract failed for https://requests.readthedocs.io/_/downloads/en/stable/pdf; used the search snippet.
-- Extract failed for https://requests.readthedocs.io/en/latest/api; used the search snippet.
-
-<details><summary>Evidence shown to the jury</summary>
-
-[1] <https://requests.readthedocs.io/en/master/user/advanced>
-
-> We will begin with the verb most commonly used: GET. HTTP GET is an idempotent method that returns a resource from a given URL. As a result, it is the verb you ought to use when attempting to retrieve data from a web location. An example usage would be attempting to get information about a specific commit from GitHub. Suppose we wanted commit `a050faf` on Requests. We would get it like so: ``` >>> import requests>>> r = requests. get(' ``` We should confirm that GitHub responded correctly. If it has, we want to work out what type of content it is. Do this like so: ``` >>> if r. status_code == requests. codes. ok:... print(r. headers['content-type'])...application/json; charset=utf-8 ```
-
-[2] <https://requests.readthedocs.io/en/master/user/advanced>
-
-> All values that are contained within a session are directly available to you. See the Session API Docs to learn more. ## Request and Response Objects¶ Whenever a call is made to `requests.get()` and friends, you are doing two major things. First, you are constructing a `Request` object which will be sent off to a server to request or query some resource. Second, a `Response` object is generated once Requests gets a response back from the server. The `Response` object contains all of the information returned by the server and also contains the `Request` object you created originally. Here is a simple request to get some very important information from Wikipedia’s servers: ``` >>> r = requests. get(' ``` If we want to access the headers the server sent back to us, we do this:
-
-[3] <https://requests.readthedocs.io/en/master/user/advanced>
-
-> ``` r = requests. get(' timeout =(3.05, 27)) ``` If the remote server is very slow, you can tell Requests to wait forever for a response, by passing None as a timeout value and then retrieving a cup of coffee. ``` r = requests. get(' timeout = None) ``` Note The connect timeout applies to each connection attempt to an IP address. If multiple addresses exist for a domain name, the underlying `urllib3` will try each address sequentially until one successfully connects. This may lead to an effective total connection timeout multiple times longer than the specified time, e.g. an unresponsive server having both IPv4 and IPv6 addresses will have its perceived timeout doubled, so take that into account when setting the connection timeout. Note
-
-[4] <https://requests.readthedocs.io/en/master/user/advanced>
-
-> ``` from urllib3.util import Retry from requests import Session from requests.adapters import HTTPAdapter s = Session() retries = Retry(total = 3, backoff_factor =0.1, status_forcelist =[502, 503, 504], allowed_methods ={'POST'},) s. mount(' HTTPAdapter(max_retries = retries)) ``` ## Blocking Or Non-Blocking?¶ With the default Transport Adapter in place, Requests does not provide any kind of non-blocking IO. The `Response.content` property will block until the entire response has been downloaded. If you require more granularity, the streaming features of the library (see Streaming Requests) allow you to retrieve smaller quantities of the response at a time. However, these calls will still block.
-
-[5] <https://requests.readthedocs.io/_/downloads/en/stable/pdf>
-
-> GetKwargs]) → Response. Sends a GET request. Parameters. • url – URL ... max_retries – The maximum number of retries each connection should
-
-[6] <https://requests.readthedocs.io/en/master/user/advanced>
-
-> ``` import ssl from urllib3.poolmanager import PoolManager from requests.adapters import HTTPAdapter class Ssl3HttpAdapter(HTTPAdapter): """"Transport adapter" that allows us to use SSLv3.""" def init_poolmanager(self, connections, maxsize, block = False): self. poolmanager = PoolManager(num_pools = connections, maxsize = maxsize, block = block, ssl_version = ssl. PROTOCOL_SSLv3) ``` ### Example: Automatic Retries¶ By default, Requests does not retry failed connections. However, it is possible to implement automatic retries with a powerful array of features, including backoff, within a Requests `Session` using the urllib3.util.Retry class:
 
 </details>
 
