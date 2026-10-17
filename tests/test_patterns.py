@@ -31,6 +31,12 @@ def test_install_command_in_prose_stops_at_the_clause():
     assert [p for _, p, _, _, _ in kinds("pip install fastapi and uvicorn, then restart the server.")] == ["fastapi", "uvicorn"]
 
 
+def test_install_command_stops_where_the_prose_starts():
+    # Without punctuation: "to" starts the prose, so "get", "new" and "router" are not packages.
+    assert [p for _, p, _, _, _ in kinds("Run pip install fastapi==0.200.0 to get the new router.")] == ["fastapi"]
+    assert [p for _, p, _, _, _ in kinds("npm install left-pad for the string helper")] == ["left-pad"]
+
+
 def test_licence_phrase_needs_one_package():
     assert kinds("The `httpx` package is BSD-3-Clause licensed.") == [
         (ClaimType.LICENSE_IS, "httpx", None, "BSD-3-Clause", None)

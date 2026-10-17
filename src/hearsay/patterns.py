@@ -48,6 +48,12 @@ NOT_PACKAGES = {
     "instead", "fixes", "fix", "package", "packages", "library", "here", "there", "too",
 }
 
+# Words that end an install command's arguments: the sentence goes on in prose.
+PROSE_STARTS = {
+    "to", "for", "so", "which", "that", "then", "because", "since", "in", "on", "with", "from", "if",
+    "when", "before", "after", "as", "into", "by", "via", "is", "was", "are", "it", "this", "fixes", "fix",
+}
+
 
 def _ecosystem_hint(text: str) -> str | None:
     t = text.lower()
@@ -97,6 +103,8 @@ def extract_with_patterns(text: str, *, pins_only: bool = False) -> tuple[list[C
             # Arguments end where the prose starts again: "pip install x==1.0, which fixes ..."
             args = re.split(r"[,;()]|\.(?:\s|$)|\s-\s", m.group("args"))[0]
             for arg in args.split():
+                if arg.lower() in PROSE_STARTS:  # "pip install x to get the new router"
+                    break
                 if arg.startswith("-") or arg in (".", "-e") or arg.lower() in NOT_PACKAGES:
                     continue
                 pm = re.fullmatch(rf"(?P<pkg>{NAME})(?:==|@)(?P<ver>{VERSION})", arg)
