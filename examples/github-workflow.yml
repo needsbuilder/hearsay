@@ -1,0 +1,50 @@
+# Example workflow: copy to .github/workflows/hearsay.yml in your repository.
+#
+# Hearsay reads the pull request description (and, if enabled, comments by
+# bots and agents) from the event payload. It never checks out or runs the
+# pull request's code, which is why pull_request_target is safe here: it lets
+# the job use the secrets and a write token on pull requests from forks too.
+# If you prefer `pull_request`, fork pull requests get no secrets and a
+# read-only token, so the comment step fails for them.
+#
+# Secrets to add under Settings > Secrets and variables > Actions:
+#   TAVILY_API_KEY, NEBIUS_API_KEY
+# Variables (not secret) for the model ids, from GET https://api.tokenfactory.nebius.com/v1/models:
+#   HEARSAY_EXTRACT_MODEL, HEARSAY_JUDGE_MODELS (comma separated), HEARSAY_ADJUDICATOR_MODEL
+
+name: Hearsay
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: hearsay-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  hearsay:
+    # issue_comment also fires on issues; only pull request comments matter here.
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check claims with Hearsay
+        uses: OWNER/hearsay@main # replace OWNER, and pin a release tag or commit
+        with:
+          tavily-api-key: ${{ secrets.TAVILY_API_KEY }}
+          llm-api-key: ${{ secrets.NEBIUS_API_KEY }}
+          llm-base-url: https://api.tokenfactory.nebius.com/v1/
+          extract-model: ${{ vars.HEARSAY_EXTRACT_MODEL }}
+          judge-models: ${{ vars.HEARSAY_JUDGE_MODELS }}
+          adjudicator-model: ${{ vars.HEARSAY_ADJUDICATOR_MODEL }}
+          fail-on-contradicted: "true"
+          include-bot-comments: "true"
+          # Logins of agents that comment as a user account rather than a bot:
+          agent-logins: ""

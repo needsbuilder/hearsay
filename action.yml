@@ -1,0 +1,98 @@
+name: Hearsay
+description: Check what a pull request (and, optionally, bot and agent comments) claims about packages, advisories, licences and documentation against primary sources, and post one comment with the report.
+author: Hearsay
+
+inputs:
+  github-token:
+    description: Token used to read and write the pull request comment. Needs pull-requests write permission.
+    default: ${{ github.token }}
+  tavily-api-key:
+    description: Tavily API key, for documentation claims. Without it those claims are unverifiable.
+    default: ""
+  llm-api-key:
+    description: API key for the OpenAI-compatible model endpoint (Nebius Token Factory). Without model settings only install commands, pins and CVE sentences are checked.
+    default: ""
+  llm-base-url:
+    description: OpenAI-compatible endpoint.
+    default: https://api.tokenfactory.nebius.com/v1/
+  extract-model:
+    description: Model id that extracts the claims.
+    default: ""
+  judge-models:
+    description: Judge model ids, comma separated.
+    default: ""
+  adjudicator-model:
+    description: Model id used when the judges disagree.
+    default: ""
+  fail-on-contradicted:
+    description: Fail the check when any claim is contradicted ("true" or "false").
+    default: "false"
+  include-bot-comments:
+    description: Also check comments on the pull request written by bot accounts and by the logins in agent-logins ("true" or "false").
+    default: "false"
+  agent-logins:
+    description: Comma-separated logins to treat as agents, in addition to bot accounts.
+    default: ""
+  comment-on-empty:
+    description: Post a comment even when no checkable claims are found ("true" or "false"). An existing Hearsay comment is always updated.
+    default: "false"
+  tavily-max-calls:
+    description: Uncached Tavily calls allowed per run.
+    default: "20"
+  cache:
+    description: Keep Hearsay's answer cache between runs with actions/cache ("true" or "false").
+    default: "true"
+
+outputs:
+  claims:
+    description: Number of claims checked.
+    value: ${{ steps.hearsay.outputs.claims }}
+  supported:
+    description: Number of supported claims.
+    value: ${{ steps.hearsay.outputs.supported }}
+  contradicted:
+    description: Number of contradicted claims.
+    value: ${{ steps.hearsay.outputs.contradicted }}
+  unverifiable:
+    description: Number of unverifiable claims.
+    value: ${{ steps.hearsay.outputs.unverifiable }}
+  comment-url:
+    description: URL of the comment that was created or updated (empty when none was posted).
+    value: ${{ steps.hearsay.outputs.comment-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        python-version: "3.12"
+
+    - name: Restore the Hearsay cache
+      if: inputs.cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/hearsay-cache
+        key: hearsay-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: hearsay-
+
+    # Inputs reach the script only through environment variables, never by
+    # expanding them into the shell command.
+    - name: Check the pull request
+      id: hearsay
+      shell: bash
+      env:
+        HEARSAY_GITHUB_TOKEN: ${{ inputs.github-token }}
+        TAVILY_API_KEY: ${{ inputs.tavily-api-key }}
+        HEARSAY_LLM_API_KEY: ${{ inputs.llm-api-key }}
+        HEARSAY_LLM_BASE_URL: ${{ inputs.llm-base-url }}
+        HEARSAY_EXTRACT_MODEL: ${{ inputs.extract-model }}
+        HEARSAY_JUDGE_MODELS: ${{ inputs.judge-models }}
+        HEARSAY_ADJUDICATOR_MODEL: ${{ inputs.adjudicator-model }}
+        HEARSAY_TAVILY_MAX_CALLS: ${{ inputs.tavily-max-calls }}
+        HEARSAY_CACHE_DIR: ${{ runner.temp }}/hearsay-cache
+        HEARSAY_ACTION_FAIL_ON_CONTRADICTED: ${{ inputs.fail-on-contradicted }}
+        HEARSAY_ACTION_INCLUDE_BOT_COMMENTS: ${{ inputs.include-bot-comments }}
+        HEARSAY_ACTION_AGENT_LOGINS: ${{ inputs.agent-logins }}
+        HEARSAY_ACTION_COMMENT_ON_EMPTY: ${{ inputs.comment-on-empty }}
+      run: uv run --frozen --no-dev --quiet --project "$GITHUB_ACTION_PATH" python -m hearsay.github_action
