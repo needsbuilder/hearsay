@@ -44,6 +44,8 @@ NOT_PACKAGES = {
     "or", "the", "of", "is", "at", "than", "release", "update", "upgrade", "upgrading", "bump", "bumped",
     "pin", "pinned", "with", "on", "by", "uses", "use", "using", "requires", "require", "version:", "v.",
     "cve", "ghsa", "typescript", "java", "go", "rust", "ruby", "php", "release:", "above", "below",
+    "then", "first", "it", "them", "via", "for", "which", "that", "this", "if", "also", "now", "again",
+    "instead", "fixes", "fix", "package", "packages", "library", "here", "there", "too",
 }
 
 
@@ -92,8 +94,10 @@ def extract_with_patterns(text: str, *, pins_only: bool = False) -> tuple[list[C
         for m in INSTALL.finditer(s):
             tool = m.group("tool").lower()
             install_eco = "npm" if tool in ("npm", "pnpm", "yarn") else "pypi"
-            for arg in m.group("args").split():
-                if arg.startswith("-") or arg in (".", "-e"):
+            # Arguments end where the prose starts again: "pip install x==1.0, which fixes ..."
+            args = re.split(r"[,;()]|\.(?:\s|$)|\s-\s", m.group("args"))[0]
+            for arg in args.split():
+                if arg.startswith("-") or arg in (".", "-e") or arg.lower() in NOT_PACKAGES:
                     continue
                 pm = re.fullmatch(rf"(?P<pkg>{NAME})(?:==|@)(?P<ver>{VERSION})", arg)
                 if pm:

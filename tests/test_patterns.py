@@ -23,6 +23,14 @@ def test_install_commands():
     assert kinds("pip install fastapi==0.200.0")[0][:3] == (ClaimType.VERSION_EXISTS, "fastapi", "0.200.0")
 
 
+def test_install_command_in_prose_stops_at_the_clause():
+    out = kinds("Run pip install requests==2.31.0, which fixes CVE-2023-32681.")
+    assert (ClaimType.VERSION_EXISTS, "requests", "2.31.0", None, "pypi") in out
+    assert (ClaimType.FIXES_VULNERABILITY, "requests", "2.31.0", "CVE-2023-32681", "pypi") in out
+    assert {p for _, p, _, _, _ in out} == {"requests"}
+    assert [p for _, p, _, _, _ in kinds("pip install fastapi and uvicorn, then restart the server.")] == ["fastapi", "uvicorn"]
+
+
 def test_licence_phrase_needs_one_package():
     assert kinds("The `httpx` package is BSD-3-Clause licensed.") == [
         (ClaimType.LICENSE_IS, "httpx", None, "BSD-3-Clause", None)
