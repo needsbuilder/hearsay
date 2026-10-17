@@ -117,6 +117,22 @@ DOCS_CLAIMS = {
 }
 
 
+# Windows tests pick from recorded pages by (API heading prefix, text), see
+# test_docs.pick(). The recorder keeps them when it trims pages to the
+# passages a run used.
+KEEP_WINDOWS = [
+    ("fs.rmdir(", "Remove `recursive` option"),
+    ("fs.rm(", "perform a recursive removal"),
+    ("classmethod datetime.utcnow()", "Deprecated since version 3.12"),
+    ("classmethod datetime.utcfromtimestamp(", "Deprecated since version 3.12"),
+    ("classmethod datetime.now(", "preferred over"),
+]
+
+
+def keep_window(url: str, window) -> bool:
+    return any((window.api_heading or "").startswith(h) and part in window.text for h, part in KEEP_WINDOWS)
+
+
 def docs_claim(name: str) -> Claim:
     spec = dict(DOCS_CLAIMS[name])
     kind = spec.pop("kind")

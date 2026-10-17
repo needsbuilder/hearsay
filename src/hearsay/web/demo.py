@@ -6,6 +6,11 @@ model) its run read. It is built from a local cache with
 
     uv run python -m hearsay.web.demo build --env-file dev/ollama.env
 
+The snapshot keeps only the documentation passages the runs used (see
+hearsay/trim.py): third-party pages are not republished, and the builder
+replays every example from the trimmed snapshot and refuses to write it if
+any verdict, source, quote or passage changes.
+
 Replaying an example runs the normal pipeline against that snapshot only: the
 network is refused, Tavily has a budget of zero and the model client cannot
 connect, so a replay makes no API calls and works when every cap is reached.
@@ -32,6 +37,7 @@ from ..llm import OpenAICompatibleClient
 from ..models import ModelConfig, Report, Usage
 from ..pipeline import Context, check
 from ..tavily import TavilyClient
+from ..trim import trim_registry, trim_tavily, used_in_reports
 
 BUNDLE_PATH = Path(__file__).parent / "demo" / "bundle.json.gz"
 BUNDLE_FORMAT = 1
@@ -115,6 +121,7 @@ class RecordingCache(Cache):
     def __init__(self, root: Path):
         super().__init__(root)
         self.seen: dict[str, dict[str, Any]] = {}
+        self.requests: dict[str, dict[str, Any]] = {}
         self.misses: list[tuple[str, Any]] = []
 
     def get(self, namespace: str, request: Any) -> Any:
@@ -122,7 +129,9 @@ class RecordingCache(Cache):
         if Cache.is_missing(value):
             self.misses.append((namespace, request))
         else:
-            self.seen.setdefault(namespace, {})[request_key(namespace, request)] = value
+            key = request_key(namespace, request)
+            self.seen.setdefault(namespace, {})[key] = value
+            self.requests.setdefault(namespace, {})[key] = request
         return value
 
     def put(self, namespace: str, request: Any, response: Any) -> None:
@@ -269,8 +278,10 @@ def build_bundle(
     the CLI first (`hearsay check examples/<file>`), which fills the cache.
     """
     entries: dict[str, dict[str, Any]] = {}
+    requests: dict[str, dict[str, Any]] = {}
     out_examples = []
     reports = {}
+    texts = {}
     for spec in specs:
         text = (examples_dir / spec.file).read_text(encoding="utf-8")
         recorder = RecordingCache(cache_dir)
@@ -287,7 +298,10 @@ def build_bundle(
             )
         for ns, items in recorder.seen.items():
             entries.setdefault(ns, {}).update(items)
+        for ns, items in recorder.requests.items():
+            requests.setdefault(ns, {}).update(items)
         reports[spec.id] = report
+        texts[spec.id] = text
         out_examples.append(
             {
                 "id": spec.id,
@@ -299,6 +313,15 @@ def build_bundle(
                 "recorded_with": describe_models(models),
             }
         )
+    entries = trim_snapshot(entries, requests, list(reports.values()))
+    for spec in specs:
+        example = Example(
+            id=spec.id, title=spec.title, kind=spec.kind, summary=spec.summary, text=texts[spec.id],
+            models=models, recorded_with=describe_models(models),
+        )
+        again, misses = replay(example, entries)
+        if misses or _comparable(again) != _comparable(reports[spec.id]):
+            raise RuntimeError(f"{spec.file}: the trimmed snapshot does not replay to the same report")
     payload = {
         "format": BUNDLE_FORMAT,
         "built": time.strftime("%Y-%m-%d"),
@@ -312,6 +335,23 @@ def build_bundle(
         with gzip.GzipFile(fileobj=fh, mode="wb", compresslevel=9, mtime=0) as gz:
             gz.write(raw)
     return reports
+
+
+def trim_snapshot(
+    entries: dict[str, dict[str, Any]], requests: dict[str, dict[str, Any]], reports: list[Report]
+) -> dict[str, dict[str, Any]]:
+    """Keep only the documentation passages the reports used, and the registry fields Hearsay reads."""
+    out = dict(entries)
+    if "tavily" in entries:
+        out["tavily"] = trim_tavily(entries["tavily"], used_in_reports(reports), requests=requests.get("tavily"))
+    if "http" in entries:
+        http_requests = requests.get("http", {})
+        out["http"] = {k: trim_registry(http_requests.get(k, {}), v) for k, v in entries["http"].items()}
+    return out
+
+
+def _comparable(report: Report) -> dict:
+    return report.model_dump(exclude={"usage"})
 
 
 def main(argv: list[str] | None = None) -> int:

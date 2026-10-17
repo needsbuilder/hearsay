@@ -125,6 +125,7 @@ class Heading:
     level: int
     api: bool
     indent: int = 0
+    raw: str = ""  # the heading's line as it appears in the page (trim.py re-emits it)
 
 
 def clean_heading(raw: str) -> str:
@@ -153,7 +154,7 @@ def page_sections(text: str) -> list[tuple[list[Heading], str]]:
             while stack and stack[-1].level >= level:
                 stack.pop()
             title = clean_heading(m.group(2))
-            stack.append(Heading(title, level, api=is_api_heading(title)))
+            stack.append(Heading(title, level, api=is_api_heading(title), raw=line))
             continue
         d = _DEFINITION.match(line)
         if d:
@@ -165,7 +166,7 @@ def page_sections(text: str) -> list[tuple[list[Heading], str]]:
             term, target = clean_heading(d.group(2)), d.group(3)
             if "." in target and target not in term:
                 term = f"{term} [{target}]"  # the qualified name Sphinx gives the definition
-            stack.append(Heading(term, level, api=True, indent=indent))
+            stack.append(Heading(term, level, api=True, indent=indent, raw=line))
             continue
         if line.strip() and stack and stack[-1].level >= DEFINITION_LEVEL:
             # A definition's body is its ":" line and the lines indented under it.
@@ -189,6 +190,8 @@ class Window:
     order: int = 0
     score: float = 0.0
     anchored: bool = field(default=False)
+    headings: list[Heading] = field(default_factory=list, repr=False)
+    body: str = field(default="", repr=False)  # the whole section body this window came from
 
     def as_passage(self, pid: int) -> Passage:
         return Passage(id=pid, url=self.url, title=self.title, section=self.section, api_heading=self.api_heading, text=self.text)
@@ -200,7 +203,7 @@ def page_windows(url: str, title: str, text: str) -> list[Window]:
         section = [h.text for h in headings]
         api = next((h.text for h in reversed(headings) if h.api), None)
         for piece in split_passages(body):
-            windows.append(Window(url, title, section, api, piece))
+            windows.append(Window(url, title, section, api, piece, headings=headings, body=body))
     return windows
 
 

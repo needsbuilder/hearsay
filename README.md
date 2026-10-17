@@ -151,7 +151,7 @@ curl -s localhost:8000/api/check -H 'content-type: application/json' \
 
 Report responses carry `X-Hearsay-Run` (`example` or `live`) and one `X-Hearsay-Notice` header per notice (for example "model calls are not configured"). Errors are JSON, `{"error": "...", "message": "..."}`, with status 400, 413, 429 or 503, and `Retry-After` where it applies.
 
-**Bundled examples.** `src/hearsay/web/demo/bundle.json.gz` holds the two example inputs (`examples/agent-pr.md`, `examples/chat-answer.md`), the model settings they were recorded with, and every cached answer their runs read: registry, OSV and deps.dev responses, Tavily pages and model replies. Opening an example runs the normal pipeline against that snapshot with the network refused, a Tavily budget of zero and a model client that cannot connect. So it makes no API calls and shows the same report when every limit below is reached. A test replays both examples and compares them with `examples/*.report.json`. Live checks read the snapshot after their own cache, so an edited example reuses the answers the bundle holds. The page says which models recorded an example; the current bundle was recorded with the local development stand-in. To rebuild it after the examples are re-run (for example with Nemotron once the Token Factory key exists):
+**Bundled examples.** `src/hearsay/web/demo/bundle.json.gz` holds the two example inputs (`examples/agent-pr.md`, `examples/chat-answer.md`), the model settings they were recorded with, and the cached answers their runs read: registry, OSV and deps.dev responses (minus fields Hearsay never reads), model replies, and Tavily answers cut down to the documentation passages the runs used (see "Third-party text in the repository" below). Opening an example runs the normal pipeline against that snapshot with the network refused, a Tavily budget of zero and a model client that cannot connect. So it makes no API calls and shows the same report when every limit below is reached. A test replays both examples and compares them with `examples/*.report.json`. Live checks read the snapshot after their own cache, so an edited example reuses the answers the bundle holds; a reused Tavily answer holds only the passages the bundled runs used. The page says which models recorded an example; the current bundle was recorded with the local development stand-in. To rebuild it after the examples are re-run (for example with Nemotron once the Token Factory key exists):
 
 ```sh
 uv run hearsay check examples/agent-pr.md      # fills .hearsay-cache with the current settings
@@ -324,11 +324,22 @@ What the stand-in got right and wrong (a handful of claims, not an accuracy meas
 ## Development
 
 ```sh
-uv run pytest                              # 219 tests, no network, no model calls
+uv run pytest                              # 224 tests, no network, no model calls
 uv run python tests/record_fixtures.py     # re-record fixtures (see below)
 ```
 
-The suite replays real responses recorded in `tests/fixtures/cache` through a read-only cache, refuses any socket connection, and uses a scripted fake model. `tests/record_fixtures.py` records PyPI, npm, deps.dev, OSV and GitHub answers (trimmed to the fields Hearsay reads) and copies Tavily answers from the development cache with network access to Tavily blocked, so recording spends no Tavily credits. Extracted pages over 1 MB (Node's single-page `all.html`) are emptied in the fixtures, so in replay that page falls back to its search snippet.
+The suite replays real responses recorded in `tests/fixtures/cache` through a read-only cache, refuses any socket connection, and uses a scripted fake model. `tests/record_fixtures.py` records PyPI, npm, deps.dev, OSV and GitHub answers (trimmed to the fields Hearsay reads) and copies Tavily answers from the development cache with network access to Tavily blocked, so recording spends no Tavily credits. Tavily answers are trimmed as described next.
+
+### Third-party text in the repository
+
+Fixtures and the web demo bundle replay real runs from cached answers, and a cached Tavily Extract answer is a whole documentation page. Those pages belong to their publishers (Stripe's documentation, for one, is not openly licensed; Python, Node.js, MDN and GitHub docs are, but the same rule applies to all), so what is committed keeps only what a run used (`src/hearsay/trim.py`):
+
+- the windows shown to the judges, each re-emitted under its original heading lines so it parses back to the same text, heading path and API heading; the fixtures also keep the few windows tests pick by name (`tests/support.py`, `KEEP_WINDOWS`);
+- a one-line heading for a page none of whose windows was used;
+- search results' URLs, titles and scores, and a snippet only where it replaced a failed extract;
+- registry, OSV, deps.dev and GitHub JSON, minus fields Hearsay never reads.
+
+Selection scores each window on its own text and heading path, so a page cut down to its chosen windows yields the same choice, the same judge prompts and the same cached replies. `tests/record_fixtures.py` and `python -m hearsay.web.demo build` trim automatically and replay the runs from the trimmed data; they refuse to write if any verdict, source, quote or passage changes. `tests/test_committed_text.py` fails if a committed fixture, the bundle, an example report or a benchmark result holds more than 20,000 characters of page text for one page (the judges see at most 4,500 characters per claim). The development cache (`.hearsay-cache/`, never committed) keeps the full pages, so a rebuild with other models trims again from complete data.
 
 Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-model extraction), `registries.py`, `versions.py`, `licenses.py` and `deterministic.py` (registry and advisory checks), `docs_domain.py`, `tavily.py`, `passages.py` (page sections and windows), `anchoring.py`, `jury.py`, `quotes.py` and `docs.py` (documentation path), `pipeline.py` (routing), `report.py`, `cli.py`, `cache.py`, `http.py` and `llm.py`. Delivery: `web/` (`app.py`, `limits.py`, `views.py`, `demo.py` and the bundle, templates and static files), `mcp_server.py` and `github_action.py` (the script behind `action.yml`). The web, MCP and action tests (`tests/test_web.py`, `test_mcp_server.py`, `test_github_action.py`) use the bundle, the recorded fixtures, a scripted model, the MCP SDK's in-process client and a fake GitHub API.
 
@@ -344,7 +355,7 @@ Layout: `src/hearsay/` has `extract.py` (model extraction), `patterns.py` (no-mo
 - **Old documentation versions.** Tavily can return pages of old releases. For "`json.dumps` accepts a `sort_keys` parameter" it returned the Python 2.7, 3.4 and 3.5 source text pages. (In that run both stand-in judges also quoted an example with its double quotes changed to single quotes, so both quotes were discarded and the claim was unverifiable.)
 - **The demo's limits live in memory.** The daily Tavily cap and the rate limit start again when the process restarts, and a free Render instance restarts after 15 idle minutes. The Tavily key's own monthly limit is the hard stop.
 - **Client address on Render.** Render does not document how it sets `X-Forwarded-For`. With `HEARSAY_WEB_TRUST_FORWARDED` the left-most entry is used; a client can forge it to get around the per-address limit, not the daily cap. Check the header on the deployed service.
-- **The bundle must be rebuilt** when prompts, the pipeline or the model settings change, because replays then miss answers (the test that replays the examples fails). It holds copies of the documentation pages those runs read (Node.js, Python, GitHub, MDN, Stripe), as the test fixtures do.
+- **The bundle must be rebuilt** when prompts, the pipeline or the model settings change, because replays then miss answers (the test that replays the examples fails).
 
 ## License
 

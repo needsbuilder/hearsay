@@ -7,15 +7,18 @@
 - Tavily answers are only ever copied from the development cache, which
   real `hearsay check` runs filled. Network access to Tavily is blocked
   here, so recording never spends Tavily credits.
-- Large registry responses are trimmed to the fields Hearsay reads, and
-  extracted pages over 1 MB (Node's single-page all.html) are emptied; the
-  stored entry is marked "trimmed": true.
+- Registry responses are trimmed to the fields Hearsay reads, and Tavily
+  answers keep only the documentation passages the recorded runs used plus
+  the windows tests pick by name (support.KEEP_WINDOWS), see
+  src/hearsay/trim.py. Trimmed entries are marked "trimmed": true, and the
+  docs claims are replayed from the trimmed fixtures to check that nothing
+  changed.
 """
 
 from __future__ import annotations
 
 import argparse
-import re
+import json
 import sys
 from pathlib import Path
 
@@ -23,7 +26,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from support import DOCS_CLAIMS, FIXTURE_CACHE, FakeLLM, claim, docs_claim  # noqa: E402
+from support import DOCS_CLAIMS, FIXTURE_CACHE, FakeLLM, ReadOnlyCache, claim, docs_claim, keep_window, refuse_network  # noqa: E402
 
 from hearsay.cache import Cache  # noqa: E402
 from hearsay.config import Settings  # noqa: E402
@@ -33,76 +36,12 @@ from hearsay.http import Http  # noqa: E402
 from hearsay.models import Usage  # noqa: E402
 from hearsay.pipeline import Context, check_claim  # noqa: E402
 from hearsay.tavily import TavilyClient  # noqa: E402
+from hearsay.trim import trim_registry, trim_tavily, used_windows  # noqa: E402
 
-INFO_KEYS = ("name", "version", "license", "license_expression", "classifiers", "home_page", "docs_url", "project_urls")
-
-
-MAX_PAGE_CHARS = 1_000_000
 
 
 def trim(namespace: str, request: dict, response: dict) -> dict:
-    if namespace == "tavily" and request["url"].endswith("/extract") and isinstance(response, dict):
-        results = (response.get("data") or {}).get("results") or []
-        if any(len(r.get("raw_content") or "") > MAX_PAGE_CHARS for r in results):
-            data = dict(response["data"])
-            data["results"] = [
-                {**r, "raw_content": ""} if len(r.get("raw_content") or "") > MAX_PAGE_CHARS else r for r in results
-            ]
-            return {"status": response["status"], "data": data, "trimmed": True}
-        return response
-    if namespace != "http" or not isinstance(response, dict) or response.get("status") != 200:
-        return response
-    url, data = request["url"], response["data"]
-    if not isinstance(data, dict):
-        return response
-    out = None
-    if re.fullmatch(r"https://pypi\.org/pypi/[^/]+/json", url):
-        releases = {}
-        for ver, files in (data.get("releases") or {}).items():
-            releases[ver] = (
-                [{"yanked": all(f.get("yanked") for f in files), "yanked_reason": files[0].get("yanked_reason")}]
-                if files
-                else []
-            )
-        out = {"info": {k: data["info"].get(k) for k in INFO_KEYS}, "releases": releases}
-    elif re.fullmatch(r"https://pypi\.org/pypi/[^/]+/[^/]+/json", url):
-        out = {"info": {k: data["info"].get(k) for k in INFO_KEYS}}
-    elif url.startswith("https://registry.npmjs.org/") and (request.get("headers") or {}).get("Accept", "").startswith(
-        "application/vnd.npm.install-v1"
-    ):
-        out = {
-            "name": data.get("name"),
-            "dist-tags": data.get("dist-tags"),
-            "versions": {
-                v: {k: m[k] for k in ("name", "version", "deprecated") if k in m}
-                for v, m in (data.get("versions") or {}).items()
-            },
-        }
-    elif url.startswith("https://registry.npmjs.org/"):
-        out = {k: data[k] for k in ("name", "version", "license", "licenses", "homepage", "repository", "deprecated") if k in data}
-    elif url.startswith("https://api.osv.dev/"):
-        keep = ("id", "aliases", "published", "modified", "summary", "affected")
-
-        def record(v: dict) -> dict:
-            r = {k: v[k] for k in keep if k in v}
-            nvd = (v.get("database_specific") or {}).get("nvd_published_at")
-            if nvd:
-                r["database_specific"] = {"nvd_published_at": nvd}
-            return r
-
-        if "vulns" in data:
-            out = {"vulns": [record(v) for v in data["vulns"]]}
-            if data.get("next_page_token"):
-                out["next_page_token"] = data["next_page_token"]
-        else:
-            out = record(data)
-    elif url.startswith("https://api.github.com/repos/"):
-        out = {k: data.get(k) for k in ("number", "title", "body", "html_url")}
-    elif url.startswith("https://api.deps.dev/"):
-        out = {k: data[k] for k in ("versionKey", "licenses", "links") if k in data}
-    if out is None:
-        return response
-    return {"status": 200, "data": out, "trimmed": True}
+    return trim_registry(request, response) if namespace == "http" else response
 
 
 class RecordingCache(Cache):
@@ -197,8 +136,10 @@ def main() -> int:
     for c in RECORD:
         r = check_claim(ctx, c)
         print(f"{r.verdict.value:13} {c.type.value:26} {c.package} {c.version or ''} {c.vulnerability_id or ''} {c.license or ''}")
+    evidence = {}
     for name in DOCS_CLAIMS:
         r = check_docs_claim(ctx, docs_claim(name))
+        evidence[name] = r.evidence
         print(f"{r.verdict.value:13} docs:{name} passages={len(r.evidence)} {r.reason[:80]}")
     for spec in GITHUB_PRS:
         pr = fetch_pull_request(http, spec)
@@ -208,7 +149,39 @@ def main() -> int:
         for req in cache.missing_tavily:
             print("  ", req.get("url"), str(req.get("json"))[:120])
     print(f"\nlive HTTP requests: {usage.http_requests}; Tavily network calls: {usage.tavily_calls}")
+
+    trim_recorded_tavily(evidence)
     return 0
+
+
+def trim_recorded_tavily(evidence: dict[str, list]) -> None:
+    """Cut the recorded Tavily answers down to the passages used, then replay to check."""
+    used = used_windows(p for passages in evidence.values() for p in passages)
+    files = sorted((FIXTURE_CACHE / "tavily").rglob("*.json"))
+    stored = {f: json.loads(f.read_text(encoding="utf-8")) for f in files}
+    trimmed = trim_tavily(
+        {str(f): e["response"] for f, e in stored.items()}, used, keep_window,
+        requests={str(f): e["request"] for f, e in stored.items()},
+    )
+    before = sum(f.stat().st_size for f in files)
+    for f, entry in stored.items():
+        entry["response"] = trimmed[str(f)]
+        f.write_text(json.dumps(entry, ensure_ascii=False), encoding="utf-8")
+    after = sum(f.stat().st_size for f in files)
+    print(f"Tavily fixtures trimmed: {before / 1024:.0f} KiB -> {after / 1024:.0f} KiB")
+
+    usage = Usage()
+    http = Http(ReadOnlyCache(FIXTURE_CACHE), usage, transport=refuse_network())
+    settings = Settings(llm_api_key="unused", extract_model="x", judge_models=["judge-a"], adjudicator_model="judge-b",
+                        tavily_api_key="unused", cache_dir=None)
+    unverifiable = '{"reasoning": "-", "verdict": "unverifiable", "url": null, "quote": ""}'
+    ctx = Context(settings, usage, http.cache, http, TavilyClient(http, "unused", max_calls=0),
+                  FakeLLM(lambda m, msgs: unverifiable))
+    for name, passages in evidence.items():
+        again = check_docs_claim(ctx, docs_claim(name)).evidence
+        if [p.model_dump() for p in again] != [p.model_dump() for p in passages]:
+            raise SystemExit(f"trimmed fixtures change the evidence for {name}")
+    print("replay from the trimmed fixtures: same evidence for every docs claim")
 
 
 if __name__ == "__main__":
