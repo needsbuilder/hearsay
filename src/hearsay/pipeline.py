@@ -95,6 +95,13 @@ class Context:
         if self.progress:
             self.progress(message)
 
+    def close(self) -> None:
+        """Close the HTTP connections (long-running callers: the web app, the MCP server)."""
+        self.http.close()
+        client = getattr(self.llm, "client", None)
+        if isinstance(client, httpx.Client):
+            client.close()
+
 
 DOCS_TYPES = {ClaimType.PARAMETER_EXISTS, ClaimType.API_BEHAVIOR, ClaimType.OTHER_EXTERNAL}
 

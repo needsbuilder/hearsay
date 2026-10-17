@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if outcome and outcome.report %}Report{% if outcome.example %}: {{ outcome.example.title }}{% endif %} | {% endif %}Hearsay</title>
+<meta name="description" content="Hearsay checks what coding agents say about packages, advisories, licences and documentation against primary sources.">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="{% if outcome and outcome.report %}#report{% else %}#check{% endif %}">Skip to {% if outcome and outcome.report %}the report{% else %}the form{% endif %}</a>
+<header class="site">
+  <div class="wrap">
+    <p class="brand"><a href="/">Hearsay</a></p>
+    <p class="tagline">Checks what coding agents say about the outside world against primary sources.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="intro" aria-labelledby="intro-title">
+    <h1 id="intro-title">Is the agent's statement backed by a primary source?</h1>
+    <p>Coding agents state facts in pull requests and chat answers: package versions, CVE fix versions, licences, documented parameters, deprecations, vendor API behaviour. Hearsay extracts those claims and checks each one. Registry and advisory facts are answered by PyPI, npm, deps.dev and OSV, without a model. Documentation claims are searched only on the official documentation site (through Tavily) and judged by a jury of models. A vote counts only with a quote that appears word for word in the documentation and, when the claim names a function, comes from that function's section. Without a primary source the verdict is <em>unverifiable</em>.</p>
+  </section>
+
+  <section class="examples" aria-labelledby="examples-title">
+    <h2 id="examples-title">Bundled examples</h2>
+    <p class="muted">Replayed from recorded answers: no API calls, and they work when the limits below are reached.</p>
+    {% if examples %}
+    <ul class="example-list">
+      {% for e in examples %}
+      <li>
+        <a class="example{% if outcome and outcome.example and outcome.example.id == e.id %} current{% endif %}" href="/examples/{{ e.id }}#report"{% if outcome and outcome.example and outcome.example.id == e.id %} aria-current="page"{% endif %}>
+          <span class="example-title">{{ e.title }}</span>
+          <span class="example-kind">{{ e.kind }}</span>
+          <span class="example-summary">{{ e.summary }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No examples are bundled with this build.</p>
+    {% endif %}
+  </section>
+
+  <section class="check" id="check" aria-labelledby="check-title">
+    <h2 id="check-title">Check a text</h2>
+    <form method="post" action="/check#report" id="check-form" data-max="{{ config.max_chars }}">
+      <label for="text">Text from a coding agent: a pull request description or a chat answer</label>
+      <textarea id="text" name="text" rows="12" spellcheck="false" aria-describedby="text-help text-count" required>{{ text }}</textarea>
+      <div class="form-row">
+        <p id="text-help" class="muted">Up to {{ config.max_chars|thousands }} characters. Claims about the author's own work ("tests pass") and opinions are skipped.</p>
+        <p id="text-count" class="muted count" aria-live="polite"></p>
+      </div>
+      <div class="form-row">
+        <button type="submit" id="submit">Check claims</button>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+    <details class="limits">
+      <summary>Limits on this demo</summary>
+      <ul>
+        <li>Live checks: {{ config.rate_limit }} per {{ config.rate_window // 60 }} minutes from one address, {{ config.max_concurrent }} at a time on the server.</li>
+        <li>Documentation lookups: at most {{ settings.tavily_max_calls }} new Tavily calls per check and {{ config.tavily_daily_cap }} per day for the whole demo ({{ tavily_left_today }} left today, UTC). Answers already in the cache cost nothing and are not limited.</li>
+        <li>Text: up to {{ config.max_chars|thousands }} characters.</li>
+        {% if not models_configured %}
+        <li>Model calls are not configured on this server right now, so live checks use the pattern extractor and check registry and advisory claims only. The examples show the full pipeline.</li>
+        {% endif %}
+        {% if not tavily_configured %}
+        <li>Tavily is not configured on this server right now, so live documentation claims are unverifiable.</li>
+        {% endif %}
+      </ul>
+    </details>
+  </section>
+
+  {% if outcome and outcome.error %}
+  <div class="notice notice-error" role="alert" id="{% if not outcome.report %}report{% else %}error{% endif %}">
+    <p>{{ outcome.error }}</p>
+  </div>
+  {% endif %}
+
+  {% if outcome and outcome.report %}
+  {% set report = outcome.report %}
+  {% set t = report.totals %}
+  <section class="report" id="report" aria-labelledby="report-title">
+    <h2 id="report-title">Report{% if outcome.example %}: {{ outcome.example.title }}{% endif %}</h2>
+
+    {% if outcome.run == "example" %}
+    <p class="run-info">Bundled example, replayed from the recorded cache with no API calls. {{ outcome.example.recorded_with }}</p>
+    {% else %}
+    {% set u = report.usage %}
+    <p class="run-info">Live check: {{ u.http_requests }} new registry and advisory requests ({{ u.http_cache_hits }} from the cache), {{ u.tavily_calls }} new Tavily calls ({{ u.tavily_cache_hits }} from the cache), {{ u.llm_calls }} new model calls ({{ u.llm_cache_hits }} from the cache).</p>
+    {% endif %}
+
+    {% for n in outcome.notices %}
+    <div class="notice" role="note"><p>{{ n }}</p></div>
+    {% endfor %}
+
+    <dl class="totals" aria-label="Totals">
+      <div class="total"><dt>Claims</dt><dd>{{ t.claims }}</dd></div>
+      <div class="total v-supported"><dt>Supported</dt><dd>{{ t.supported }}</dd></div>
+      <div class="total v-contradicted"><dt>Contradicted</dt><dd>{{ t.contradicted }}</dd></div>
+      <div class="total v-unverifiable"><dt>Unverifiable</dt><dd>{{ t.unverifiable }}</dd></div>
+    </dl>
+
+    {% if not claims %}
+    <p>No checkable claims about third-party facts were found.</p>
+    {% else %}
+    <nav aria-label="Claims in this report">
+      <ol class="claim-index">
+        {% for c in claims %}
+        <li><a href="#claim-{{ c.result.claim.id }}"><span class="badge v-{{ c.result.verdict.value }}">{{ c.verdict_label }}</span> <span class="index-text">{{ c.result.claim.statement }}</span> <span class="path-tag">{{ c.path_label }}</span></a></li>
+        {% endfor %}
+      </ol>
+    </nav>
+
+    {% for c in claims %}
+    {% set r = c.result %}
+    <article class="claim v-{{ r.verdict.value }}" id="claim-{{ r.claim.id }}" aria-labelledby="claim-{{ r.claim.id }}-title">
+      <div class="claim-head">
+        <span class="badge v-{{ r.verdict.value }}">{{ c.verdict_label }}</span>
+        <span class="path-tag" title="{{ c.path_help }}">Decided by: {{ c.path_label }}</span>
+        <code class="ctype">{{ r.claim.type.value }}</code>
+      </div>
+      <h3 id="claim-{{ r.claim.id }}-title"><span class="cid">{{ r.claim.id }}</span> {{ r.claim.statement }}</h3>
+
+      <p class="said"><span class="label">Said in the input</span> {{ r.claim.source_sentence }}</p>
+      {% if r.reason %}<p class="reason">{{ r.reason }}</p>{% endif %}
+
+      {% if c.quote %}
+      <figure class="quote{% if c.field_quote %} quote-field{% endif %}">
+        <figcaption>
+          {% if c.field_quote %}Field and value relied on{% elif c.quote.in_context %}Verbatim quote, highlighted in the passage it comes from{% else %}Verbatim quote{% endif %}{% if c.quote.section %}: <span class="section">{{ c.quote.section }}</span>{% endif %}
+        </figcaption>
+        {% if c.field_quote %}
+        <pre><code>{{ c.quote.quote }}</code></pre>
+        {% else %}
+        <blockquote>{% if c.quote.before %}<span class="ctx">{{ c.quote.before }}</span>{% endif %}<mark>{{ c.quote.quote }}</mark>{% if c.quote.after %}<span class="ctx">{{ c.quote.after }}</span>{% endif %}</blockquote>
+        {% endif %}
+      </figure>
+      {% endif %}
+
+      <dl class="facts">
+        <div><dt>Source</dt><dd>{% set link = r.source_url|safe_url %}{% if link %}<a href="{{ link }}" rel="noopener noreferrer nofollow">{{ link }}</a>{% else %}none{% endif %}</dd></div>
+        <div><dt>Decision path</dt><dd><strong>{{ c.path_label }}</strong>: {{ c.path_help }}</dd></div>
+        {% if r.docs_domains %}<div><dt>Documentation searched</dt><dd>{{ r.docs_domains|join(", ") }}</dd></div>{% endif %}
+        {% if r.claim.origin == "pattern" %}<div><dt>Found by</dt><dd>pattern (install command or version pin), not the extractor model</dd></div>{% endif %}
+      </dl>
+
+      {% if c.votes %}
+      <h4>Votes</h4>
+      <ol class="votes">
+        {% for v in c.votes %}
+        <li class="vote{% if v.discarded %} discarded{% endif %}">
+          <p class="vote-head"><strong>{{ v.who }}</strong> <code>{{ v.model }}</code></p>
+          <dl class="vote-facts">
+            <div><dt>Answered</dt><dd>{{ v.stated }}</dd></div>
+            <div><dt>Counted as</dt><dd><span class="badge small v-{{ v.effective.value }}">{{ VERDICT_LABEL[v.effective] }}</span></dd></div>
+            <div><dt>Quote found in the evidence</dt><dd>{% if v.quote %}{{ "yes" if v.quote_found else "no" }}{% else %}no quote{% endif %}</dd></div>
+            <div><dt>Quote from a section about the claim's symbol</dt><dd>{% if v.anchored is none %}not checked{% elif v.anchored %}yes{% else %}no{% endif %}</dd></div>
+          </dl>
+          {% if v.discarded %}<p class="why"><span class="label">Why the vote did not count as answered</span> {{ v.discarded }}</p>{% endif %}
+          {% if v.quote %}<blockquote class="vote-quote">{{ v.quote }}</blockquote>{% endif %}
+          {% if v.reasoning %}<p class="reasoning"><span class="label">Reasoning</span> {{ v.reasoning }}</p>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% endif %}
+
+      {% if r.notes %}
+      <ul class="notes">
+        {% for n in r.notes %}<li>{{ n }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+
+      {% if r.evidence %}
+      <details class="evidence">
+        <summary>Evidence the jury read ({{ r.evidence|length }} passage{{ "s" if r.evidence|length != 1 }})</summary>
+        <ol>
+          {% for p in r.evidence %}
+          <li>
+            <p class="passage-meta">{% if p.section %}<span class="section">{{ p.section|join(" > ") }}</span><br>{% endif %}{% set plink = p.url|safe_url %}{% if plink %}<a href="{{ plink }}" rel="noopener noreferrer nofollow">{{ plink }}</a>{% else %}{{ p.url }}{% endif %}</p>
+            <div class="passage">{{ p.text }}</div>
+          </li>
+          {% endfor %}
+        </ol>
+      </details>
+      {% endif %}
+    </article>
+    {% endfor %}
+    {% endif %}
+
+    {% set ex = report.extraction %}
+    <div class="run-footer">
+      <p>{% if ex.method == "llm" %}Claims extracted by <code>{{ ex.model }}</code> from {{ ex.sentences }} sentences{% else %}Claims extracted by {{ ex.method }} from {{ ex.sentences }} sentences{% endif %}{% if ex.rejected %}; {{ ex.rejected|length }} invalid extraction{{ "s" if ex.rejected|length != 1 }} dropped{% endif %}.
+      {% if report.models.judge_models %}Jury: {% for m in report.models.judge_models %}<code>{{ m }}</code>{{ ", " if not loop.last }}{% endfor %}; adjudicator <code>{{ report.models.adjudicator_model }}</code>.{% endif %}</p>
+      {% if outcome.example %}<p>JSON for this report: <a href="/api/examples/{{ outcome.example.id }}">/api/examples/{{ outcome.example.id }}</a></p>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="api" aria-labelledby="api-title">
+    <h2 id="api-title">Use it elsewhere</h2>
+    <ul>
+      <li>JSON API: <code>POST /api/check</code> with <code>{"text": "..."}</code> or <code>{"example": "agent-pr"}</code> returns the report as JSON.</li>
+      <li>Command line, MCP server for coding agents, and a GitHub Action for pull requests: see the README{% if config.repo_url %} in the <a href="{{ config.repo_url|safe_url }}" rel="noopener noreferrer">source repository</a>{% endif %}.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <p>Hearsay {{ version }}. MIT licence. An entry for the NVIDIA x Nebius Global AI Hackathon.{% if config.repo_url %} <a href="{{ config.repo_url|safe_url }}" rel="noopener noreferrer">Source</a>.{% endif %}</p>
+  </div>
+</footer>
+</body>
+</html>

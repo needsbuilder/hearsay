@@ -1,4 +1,5 @@
-"""Command line: hearsay check <file> | hearsay check --github-pr OWNER/REPO#N | hearsay claim "<sentence>"."""
+"""Command line: hearsay check <file> | hearsay check --github-pr OWNER/REPO#N | hearsay claim "<sentence>"
+| hearsay web | hearsay mcp."""
 
 from __future__ import annotations
 
@@ -43,21 +44,53 @@ def build_parser() -> argparse.ArgumentParser:
     one = sub.add_parser("claim", help="check a single sentence")
     one.add_argument("sentence")
     _common(one)
+
+    web = sub.add_parser("web", help="run the web demo (FastAPI) on http://HOST:PORT")
+    web.add_argument("--host", default="127.0.0.1", help="address to listen on (default 127.0.0.1)")
+    web.add_argument("--port", type=int, default=8000, help="port (default 8000)")
+    web.add_argument("--env-file", action="append", default=[], metavar="PATH", help="load KEY=VALUE settings (repeatable)")
+
+    mcp = sub.add_parser("mcp", help="run the MCP server on stdio, for coding agents")
+    mcp.add_argument("--env-file", action="append", default=[], metavar="PATH", help="load KEY=VALUE settings (repeatable)")
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-
-    default_env = Path(".env")
-    if default_env.is_file():
-        load_env_file(default_env)
-    for path in args.env_file:
+def _load_env_files(paths: list[str]) -> bool:
+    for path in paths:
         try:
             load_env_file(path)
         except OSError as exc:
             print(f"hearsay: cannot read env file {path}: {exc.strerror}", file=sys.stderr)
-            return 1
+            return False
+    return True
+
+
+def _serve(args: argparse.Namespace) -> int:
+    """`hearsay web` and `hearsay mcp` read settings from the environment and
+    --env-file only; a .env in the working directory is not loaded for them."""
+    if not _load_env_files(args.env_file):
+        return 1
+    if args.command == "web":
+        import uvicorn
+
+        uvicorn.run("hearsay.web.app:app", host=args.host, port=args.port, proxy_headers=False)
+        return 0
+    from .mcp_server import main as mcp_main
+
+    mcp_main()
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.command in ("web", "mcp"):
+        return _serve(args)
+
+    default_env = Path(".env")
+    if default_env.is_file():
+        load_env_file(default_env)
+    if not _load_env_files(args.env_file):
+        return 1
 
     settings = Settings.from_env()
     settings.refresh_cache = args.refresh
