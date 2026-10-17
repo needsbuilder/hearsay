@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import date
 
 from .http import Http
 from .licenses import Match, compare_license
@@ -252,20 +253,77 @@ def _events_text(rng: dict) -> str:
 
 
 def _rank_records(records: list[dict], wanted: str) -> list[dict]:
-    """Order OSV records for a requested id, most authoritative first.
-
-    OSV merges aliases, so a later advisory about an incomplete fix can list
-    the original CVE as an alias. The record whose own id is the requested
-    one comes first, then the earliest published record (the original
-    advisory), preferring the GitHub advisory over ecosystem databases.
-    """
+    """Order records for citation: the record with the requested id, then GitHub's
+    advisory, then ecosystem databases, earliest published first."""
 
     def rank(r: dict) -> tuple:
         rid = r.get("id", "")
         source = 0 if rid.startswith("GHSA-") else 1 if rid.startswith(("PYSEC-", "MAL-")) else 2
-        return (0 if rid.upper() == wanted else 1, r.get("published") or "9999", source, rid)
+        return (0 if rid.upper() == wanted else 1, source, r.get("published") or "9999", rid)
 
     return sorted(records, key=rank)
+
+
+# GitHub's records carry database_specific.nvd_published_at: when NVD published
+# the CVE that GitHub attached to the advisory. A GHSA whose date is further
+# than this from the claimed CVE's publication was written for another CVE.
+NVD_DATE_TOLERANCE_DAYS = 7
+
+
+def _day(value: object) -> date | None:
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _other_cve(record: dict, wanted: str, cve_record: dict | None) -> str | None:
+    """Why a record linked to `wanted` only by OSV's merged aliases is about another CVE."""
+    rid = record.get("id", "")
+    nvd = _day((record.get("database_specific") or {}).get("nvd_published_at"))
+    cve_day = _day((cve_record or {}).get("published"))
+    if not rid.startswith("GHSA-") or nvd is None or cve_day is None:
+        return None
+    if abs((nvd - cve_day).days) <= NVD_DATE_TOLERANCE_DAYS:
+        return None
+    return (
+        f"{rid} is not used: OSV lists {wanted} among its merged aliases, but GitHub wrote it for a CVE "
+        f"published at NVD on {nvd}, and {wanted} was published on {cve_day}."
+    )
+
+
+def matching_records(http: Http, linked: list[dict], wanted: str) -> tuple[list[dict], list[str]]:
+    """The records that describe the claimed vulnerability, and notes on the ones left out.
+
+    OSV merges aliases transitively, so a record can list ids it was never
+    about (lodash's 2021 advisory lists the 2026 CVE of a later incomplete
+    fix). Matching means:
+
+    1. a record whose own id is the claimed id is the claimed advisory, and
+       only such records are used;
+    2. for a claimed CVE, every record that lists it, except a GitHub advisory
+       whose nvd_published_at (the publication of the CVE GitHub attached)
+       is more than NVD_DATE_TOLERANCE_DAYS from the claimed CVE's own
+       publication date in OSV;
+    3. records without that evidence (PYSEC and others) are kept, so a
+       merged record of that kind can still cause a disagreement, which
+       makes the verdict unverifiable rather than wrong.
+    """
+    own = [r for r in linked if r.get("id", "").upper() == wanted]
+    if own:
+        others = sorted(r["id"] for r in linked if r not in own)
+        return own, ([f"Records that list {wanted} only as an alias were not used: {', '.join(others)}."] if others else [])
+    if not wanted.startswith("CVE-"):
+        return linked, []
+    cve_record = osv_vuln(http, wanted)
+    keep, notes = [], []
+    for r in linked:
+        why = _other_cve(r, wanted, cve_record)
+        if why:
+            notes.append(why)
+        else:
+            keep.append(r)
+    return (keep or linked), notes
 
 
 def _evaluate_record(eco: str, version: str, record: dict, package: str):
@@ -345,7 +403,9 @@ def check_vulnerability(http: Http, claim: Claim) -> ClaimResult:
             notes,
         )
 
-    ranked = _rank_records(matched, wanted)
+    matching, excluded = matching_records(http, matched, wanted)
+    notes.extend(excluded)
+    ranked = _rank_records(matching, wanted)
     evaluated = []
     try:
         for record in ranked:
@@ -357,17 +417,23 @@ def check_vulnerability(http: Http, claim: Claim) -> ClaimResult:
     if not evaluated:
         return _unverifiable(claim, f"OSV record {ranked[0]['id']} has no version ranges for {info.name}.", notes)
 
+    if len({affected for _, (affected, _) in evaluated}) > 1:
+        # Records that describe this vulnerability disagree: do not pick one.
+        said = [
+            f"{r['id']} says {'affected' if a else 'not affected'} "
+            f"({'; '.join(_events_text(x) for x in ranges)})"
+            for r, (a, ranges) in evaluated
+        ]
+        return _result(
+            claim, Verdict.UNVERIFIABLE, DecisionPath.ADVISORY,
+            f"The OSV records for {wanted} disagree about {info.name} {version}: {'; '.join(said)}.",
+            url=osv_record_url(evaluated[0][0]["id"]),
+            quote="; ".join(f"{r['id']}: " + "; ".join(_events_text(x) for x in ranges) for r, (_, ranges) in evaluated),
+            notes=notes,
+        )
+
     primary, (primary_affected, primary_ranges) = evaluated[0]
-    for record, (affected, ranges) in evaluated[1:]:
-        if affected != primary_affected:
-            events = "; ".join(_events_text(r) for r in ranges)
-            notes.append(
-                f"OSV also links {record['id']} (published {str(record.get('published', '?'))[:10]}, aliases "
-                f"{', '.join(record.get('aliases') or []) or '-'}) to {wanted}, and by that record {info.name} {version} "
-                f"is {'affected' if affected else 'not affected'}: {events}. Hearsay follows {primary['id']}, "
-                "the record for this id or the earliest one."
-            )
-    agreeing = [r["id"] for r, (a, _) in evaluated[1:] if a == primary_affected]
+    agreeing = [r["id"] for r, _ in evaluated[1:]]
     if agreeing:
         notes.append(f"Also consistent: {', '.join(agreeing)}.")
 

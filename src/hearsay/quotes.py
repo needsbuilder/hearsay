@@ -35,6 +35,12 @@ def normalize(text: str) -> str:
     return s.strip()
 
 
+# The quote rule treats single and double quote marks as the same character
+# (normalize() already folds the curly forms into straight ones). Judges
+# often swap one for the other; nothing else is loosened.
+_SAME_QUOTE_MARK = str.maketrans({'"': "'"})
+
+
 def _trim(quote: str) -> str:
     q = normalize(quote)
     q = q.strip(" \"'")
@@ -46,10 +52,10 @@ def quote_problem(quote: str | None, text: str) -> str | None:
     """None if the quote is a verbatim (normalised) substring of text, else the reason."""
     if not quote or not quote.strip():
         return "no quote given"
-    q = _trim(quote)
+    q = _trim(quote).translate(_SAME_QUOTE_MARK)
     if len(q) < MIN_QUOTE_CHARS:
         return f"quote is shorter than {MIN_QUOTE_CHARS} characters"
-    if q not in normalize(text):
+    if q not in normalize(text).translate(_SAME_QUOTE_MARK):
         if "..." in q or "\u2026" in q:
             return "quote skips text with an ellipsis; it must be one contiguous span"
         return "quote does not appear in the evidence"

@@ -35,9 +35,24 @@ BUMP = re.compile(
     re.I,
 )
 CODE_SPAN = re.compile(r"`([^`\s]+)`")
-DEPRECATED = re.compile(r"\b(?:is|has been|was)\s+deprecated\b", re.I)
+DEPRECATED = re.compile(
+    r"\b(?:(?:is|has been|was)(?:\s+(?:not|no longer|never))?|isn['\u2019]t|wasn['\u2019]t)\s+(deprecated)\b", re.I
+)
 FIX_WORDS = re.compile(r"\b(fix|fixes|fixed|patch|patches|patched|resolve[sd]?|address(?:es|ed)?|remediates?)\b", re.I)
 AFFECTED_WORDS = re.compile(r"\b(vulnerable|affected|exposed)\b", re.I)
+
+# Negation is read from the few words right before the word that decided the
+# claim ("does not fix", "is no longer affected", "is not MIT licensed"), so a
+# "not" in another clause does not flip the claim.
+NEGATION_WINDOW = 4
+_NEGATION_CUES = {"not", "never", "without"}
+
+
+def negated_at(sentence: str, position: int) -> bool:
+    words = re.findall(r"[\w'\u2019-]+", sentence[:position].lower())[-NEGATION_WINDOW:]
+    if any(w in _NEGATION_CUES or w.endswith(("n't", "n\u2019t")) for w in words):
+        return True
+    return "no longer" in " ".join(words)
 
 NOT_PACKAGES = {
     "to", "from", "version", "v", "python", "node", "nodejs", "node.js", "npm", "pip", "since", "in", "and",
@@ -137,32 +152,35 @@ def extract_with_patterns(text: str, *, pins_only: bool = False) -> tuple[list[C
         if vulns and pairs:
             pkg, ver = pairs[0]
             used_pairs.add((pkg, ver))
-            if FIX_WORDS.search(s):
-                kind = ClaimType.FIXES_VULNERABILITY
-                verb = "fixes"
-            elif AFFECTED_WORDS.search(s):
-                kind = ClaimType.AFFECTED_BY_VULNERABILITY
-                verb = "is affected by"
+            fix, hit = FIX_WORDS.search(s), AFFECTED_WORDS.search(s)
+            if fix:
+                kind, verb, neg_verb, word = ClaimType.FIXES_VULNERABILITY, "fixes", "does not fix", fix
+            elif hit:
+                kind, verb, neg_verb, word = ClaimType.AFFECTED_BY_VULNERABILITY, "is affected by", "is not affected by", hit
             else:
                 kind = None
             if kind:
+                negated = negated_at(s, word.start())
                 for vid in vulns:
-                    claims.append(_claim(kind, s, eco, package=pkg, version=ver, vulnerability_id=vid,
-                                         statement=f"{pkg} {ver} {verb} {vid}."))
+                    claims.append(_claim(kind, s, eco, package=pkg, version=ver, vulnerability_id=vid, negated=negated,
+                                         statement=f"{pkg} {ver} {neg_verb if negated else verb} {vid}."))
 
         lm = LICENSE.search(s)
         if lm:
             lic = (lm.group("a") or lm.group("b")).strip()
             candidates = [p for p, _ in pairs] or [c for c in CODE_SPAN.findall(s) if re.fullmatch(NAME, c)]
             if len(set(candidates)) == 1:
-                claims.append(_claim(ClaimType.LICENSE_IS, s, eco, package=candidates[0], license=lic,
-                                     statement=f"{candidates[0]} is licensed under {lic}."))
+                negated = negated_at(s, lm.start())
+                claims.append(_claim(ClaimType.LICENSE_IS, s, eco, package=candidates[0], license=lic, negated=negated,
+                                     statement=f"{candidates[0]} is {'not ' if negated else ''}licensed under {lic}."))
 
-        if DEPRECATED.search(s) and eco == "npm":
+        dm = DEPRECATED.search(s)
+        if dm and eco == "npm":
             spans = [c for c in CODE_SPAN.findall(s) if re.fullmatch(NAME, c) and "." not in c and "(" not in c]
             if len(spans) == 1:
-                claims.append(_claim(ClaimType.DEPRECATED, s, "npm", package=spans[0],
-                                     statement=f"The npm package {spans[0]} is deprecated."))
+                negated = negated_at(s, dm.start(1))
+                claims.append(_claim(ClaimType.DEPRECATED, s, "npm", package=spans[0], negated=negated,
+                                     statement=f"The npm package {spans[0]} is {'not ' if negated else ''}deprecated."))
 
         for pkg, ver in pairs:
             if (pkg, ver) not in used_pairs:
@@ -179,5 +197,9 @@ def _reg(eco: str | None) -> str:
     return {"pypi": "PyPI", "npm": "npm"}.get(eco or "", "its registry")
 
 
-def _claim(kind: ClaimType, sentence: str, eco: str | None, *, statement: str, **fields: str) -> Claim:
-    return Claim(type=kind, statement=statement, source_sentence=sentence, ecosystem=eco, origin="pattern", **fields)
+def _claim(
+    kind: ClaimType, sentence: str, eco: str | None, *, statement: str, negated: bool = False, **fields: str
+) -> Claim:
+    return Claim(
+        type=kind, statement=statement, source_sentence=sentence, ecosystem=eco, origin="pattern", negated=negated, **fields
+    )

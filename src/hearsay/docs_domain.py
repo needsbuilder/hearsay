@@ -109,15 +109,35 @@ def claim_ecosystem(claim: Claim) -> str | None:
     return None
 
 
+_NODE_SUBJECT = re.compile(r"^(?:node|node\.js|nodejs)\b")
+_BROWSER_SUBJECT = re.compile(r"^(?:browser|browsers|web|web api|web apis|mdn|dom|the browser)\b")
+
+
+def stated_runtime(claim: Claim) -> str | None:
+    """"node" or "browser" when the claim says which JavaScript runtime it is about."""
+    subject = _norm(claim.subject)
+    if _NODE_SUBJECT.match(subject):
+        return "node"
+    if _BROWSER_SUBJECT.match(subject):
+        return "browser"
+    if not subject and re.search(r"\bNode(?:\.js|JS)\b", f"{claim.statement} {claim.source_sentence}"):
+        return "node"
+    return None
+
+
 def stdlib_domains(claim: Claim) -> tuple[list[str], str] | None:
+    """Built-ins of Python, Node.js and the browser. A stated runtime wins: the
+    global fetch() of Node.js is documented on nodejs.org, the browser's on MDN."""
     if not claim.symbol:
         return None
     eco = claim_ecosystem(claim)
-    subject = _norm(claim.subject)
+    runtime = stated_runtime(claim)
     top = _top_module(claim.symbol)
-    if top == "node:" or (top in NODE_BUILTINS and (eco == "npm" or subject.startswith("node"))):
+    if top == "node:" or (top in NODE_BUILTINS and (eco == "npm" or runtime == "node")):
         return ["nodejs.org"], f"Node.js built-in module {top!r}"
-    if top in JS_GLOBALS and eco in (None, "npm") and not claim.package:
+    if top in JS_GLOBALS and runtime == "node":
+        return ["nodejs.org"], f"Node.js global {top!r} (the claim is about Node.js)"
+    if top in JS_GLOBALS and (runtime == "browser" or (eco in (None, "npm") and not claim.package)):
         return ["developer.mozilla.org"], f"JavaScript built-in {top!r}"
     if top in PY_STDLIB and eco in (None, "pypi") and not (claim.package and _norm(claim.package) != top):
         return ["docs.python.org"], f"Python standard library module {top!r}"

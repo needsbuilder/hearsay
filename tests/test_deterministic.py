@@ -126,12 +126,52 @@ def test_affected_true(ctx):
     assert r.verdict == Verdict.SUPPORTED
 
 
-def test_affected_follows_original_record_and_reports_conflict(ctx):
-    # OSV links a 2026 incomplete-fix advisory (fixed in 4.18.0) to the 2021 CVE.
+def test_alias_merged_record_of_another_cve_is_not_used(ctx):
+    # OSV merges aliases: the 2026 incomplete-fix advisory GHSA-r5fr also lists CVE-2021-23337.
+    # GitHub wrote GHSA-r5fr for a CVE published at NVD in 2026, so it is not this CVE's record.
     r = run(ctx, "affected_by_vulnerability", package="lodash", version="4.17.21", vulnerability_id="CVE-2021-23337", ecosystem="npm")
     assert r.verdict == Verdict.CONTRADICTED
     assert r.source_url.endswith("GHSA-35jh-r3h4-6jhm")
-    assert any("GHSA-r5fr-rjxr-66jc" in n and "affected" in n for n in r.notes)
+    assert any(n.startswith("GHSA-r5fr-rjxr-66jc is not used") for n in r.notes)
+
+
+def test_r13_later_cve_follows_its_own_advisory(ctx):
+    # bench r13: no record's own id is CVE-2026-4800 and the 2021 record lists it too.
+    r = run(ctx, "affected_by_vulnerability", package="lodash", version="4.17.21", vulnerability_id="CVE-2026-4800", ecosystem="npm")
+    assert r.verdict == Verdict.SUPPORTED
+    assert r.source_url.endswith("GHSA-r5fr-rjxr-66jc")
+    assert '{"fixed": "4.18.0"}' in r.quote
+    assert any(n.startswith("GHSA-35jh-r3h4-6jhm is not used") and "2021-02-15" in n for n in r.notes)
+
+
+def test_r12_fix_of_the_older_cve_is_supported(ctx):
+    r = run(ctx, "fixes_vulnerability", package="lodash", version="4.17.21", vulnerability_id="CVE-2021-23337", ecosystem="npm")
+    assert r.verdict == Verdict.SUPPORTED
+    assert "first fixed release" in r.reason
+
+
+def test_u01_matching_records_that_disagree_give_unverifiable(ctx):
+    # bench u01: GitHub's record starts at 2.0.0rc1, PYSEC-2023-221 at 0. Both describe the CVE.
+    r = run(ctx, "affected_by_vulnerability", package="werkzeug", version="1.0.1", vulnerability_id="CVE-2023-46136", ecosystem="pypi")
+    assert r.verdict == Verdict.UNVERIFIABLE
+    assert r.path == DecisionPath.ADVISORY
+    assert "disagree" in r.reason
+    assert "GHSA-hrfv-mqp8-q5rw says not affected" in r.reason
+    assert "PYSEC-2023-221 says affected" in r.reason
+    assert '{"introduced": "2.0.0rc1"}' in r.quote and '{"introduced": "0"}' in r.quote
+
+
+def test_matching_rule_needs_github_date_evidence():
+    from hearsay.deterministic import _other_cve
+
+    cve = {"id": "CVE-2026-4800", "published": "2026-03-31T19:25:55.987Z"}
+    old = {"id": "GHSA-old", "database_specific": {"nvd_published_at": "2021-02-15T13:15:00Z"}}
+    same = {"id": "GHSA-new", "database_specific": {"nvd_published_at": "2026-04-02T00:00:00Z"}}
+    pysec = {"id": "PYSEC-2021-1", "published": "2021-02-20T00:00:00Z"}
+    assert "is not used" in _other_cve(old, "CVE-2026-4800", cve)
+    assert _other_cve(same, "CVE-2026-4800", cve) is None  # within 7 days
+    assert _other_cve(pysec, "CVE-2026-4800", cve) is None  # no evidence: kept
+    assert _other_cve(old, "CVE-2026-4800", None) is None  # CVE record unknown: kept
 
 
 def test_affected_npm_true(ctx):
@@ -143,6 +183,12 @@ def test_affected_without_id_lists_advisories(ctx):
     r = run(ctx, "affected_by_vulnerability", package="requests", version="2.31.0", ecosystem="pypi")
     assert r.verdict == Verdict.SUPPORTED
     assert r.quote.startswith("vulns[].id:")
+
+
+def test_negated_not_affected(ctx):
+    r = run(ctx, "affected_by_vulnerability", package="urllib3", version="1.26.17", vulnerability_id="CVE-2023-43804",
+            ecosystem="pypi", negated=True)
+    assert r.verdict == Verdict.SUPPORTED
 
 
 def test_negated_no_known_vulnerabilities(ctx):

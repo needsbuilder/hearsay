@@ -67,3 +67,41 @@ def test_missed_pins_are_added_once():
                       source_sentence=text)]
     out = add_missed_pins(existing, text)
     assert [(c.package, c.origin) for c in out] == [("requests", "llm"), ("fastapi", "pattern")]
+
+
+def flags(text):
+    claims, _ = extract_with_patterns(text)
+    return [(c.type, c.negated) for c in claims]
+
+
+def test_negation_is_detected_before_the_deciding_word():
+    # bench r22
+    assert flags("urllib3 1.26.17 in requirements.txt is not affected by CVE-2023-43804.") == [
+        (ClaimType.AFFECTED_BY_VULNERABILITY, True)
+    ]
+    assert flags("Upgrading to urllib3 2.0.5 does not fix CVE-2023-43804.") == [(ClaimType.FIXES_VULNERABILITY, True)]
+    assert flags("lodash 4.17.21 is no longer affected by CVE-2021-23337.") == [(ClaimType.AFFECTED_BY_VULNERABILITY, True)]
+    assert flags("requests 2.30.0 isn\u2019t vulnerable to CVE-2023-32681.") == [(ClaimType.AFFECTED_BY_VULNERABILITY, True)]
+    assert flags("requests 2.30.0 has never been affected by CVE-2023-32681.") == [(ClaimType.AFFECTED_BY_VULNERABILITY, True)]
+    assert flags("The `httpx` package is not BSD-3-Clause licensed.") == [(ClaimType.LICENSE_IS, True)]
+    assert flags("On npm, the `express` package is not deprecated.") == [(ClaimType.DEPRECATED, True)]
+
+
+def test_positive_sentences_stay_positive():
+    assert flags("urllib3 2.0.6 fixes CVE-2023-43804.") == [(ClaimType.FIXES_VULNERABILITY, False)]
+    assert flags("lodash 4.17.20 is affected by CVE-2021-23337.") == [(ClaimType.AFFECTED_BY_VULNERABILITY, False)]
+    # a "not" in another clause does not flip the claim
+    assert flags("requests 2.31.0 fixes CVE-2023-32681; the old pin was not patched.") == [
+        (ClaimType.FIXES_VULNERABILITY, False)
+    ]
+    assert flags("The `httpx` package is BSD-3-Clause licensed.") == [(ClaimType.LICENSE_IS, False)]
+
+
+def test_negated_pattern_claim_end_to_end():
+    from hearsay.pipeline import check
+
+    from support import fixture_context
+
+    report = check("urllib3 1.26.17 in requirements.txt is not affected by CVE-2023-43804.",
+                   context=fixture_context(tavily=False))
+    assert [(r.claim.negated, r.verdict.value) for r in report.results] == [(True, "supported")]

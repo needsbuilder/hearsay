@@ -82,12 +82,20 @@ def trim(namespace: str, request: dict, response: dict) -> dict:
         out = {k: data[k] for k in ("name", "version", "license", "licenses", "homepage", "repository", "deprecated") if k in data}
     elif url.startswith("https://api.osv.dev/"):
         keep = ("id", "aliases", "published", "modified", "summary", "affected")
+
+        def record(v: dict) -> dict:
+            r = {k: v[k] for k in keep if k in v}
+            nvd = (v.get("database_specific") or {}).get("nvd_published_at")
+            if nvd:
+                r["database_specific"] = {"nvd_published_at": nvd}
+            return r
+
         if "vulns" in data:
-            out = {"vulns": [{k: v[k] for k in keep if k in v} for v in data["vulns"]]}
+            out = {"vulns": [record(v) for v in data["vulns"]]}
             if data.get("next_page_token"):
                 out["next_page_token"] = data["next_page_token"]
         else:
-            out = {k: data[k] for k in keep if k in data}
+            out = record(data)
     elif url.startswith("https://api.github.com/repos/"):
         out = {k: data.get(k) for k in ("number", "title", "body", "html_url")}
     elif url.startswith("https://api.deps.dev/"):
@@ -144,6 +152,10 @@ RECORD = [
     claim("fixes_vulnerability", package="urllib3", version="1.26.18", vulnerability_id="CVE-2023-32681", ecosystem="pypi"),
     claim("affected_by_vulnerability", package="lodash", version="4.17.21", vulnerability_id="CVE-2021-23337", ecosystem="npm"),
     claim("affected_by_vulnerability", package="lodash", version="4.17.20", vulnerability_id="CVE-2021-23337", ecosystem="npm"),
+    claim("affected_by_vulnerability", package="lodash", version="4.17.21", vulnerability_id="CVE-2026-4800", ecosystem="npm"),
+    claim("fixes_vulnerability", package="lodash", version="4.17.21", vulnerability_id="CVE-2021-23337", ecosystem="npm"),
+    claim("affected_by_vulnerability", package="werkzeug", version="1.0.1", vulnerability_id="CVE-2023-46136", ecosystem="pypi"),
+    claim("affected_by_vulnerability", package="urllib3", version="1.26.17", vulnerability_id="CVE-2023-43804", ecosystem="pypi", negated=True),
     claim("package_exists", package="requests", ecosystem="pypi"),
     claim("package_exists", package="pydantic-settings-extra"),
     claim("package_exists", package="left-pad-hearsay-nonexistent", ecosystem="npm"),

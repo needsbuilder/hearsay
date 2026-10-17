@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from .anchoring import Anchor
+from .doc_urls import only_old_versions_note, order_and_dedupe
 from .docs_domain import DocsTarget, resolve_docs
 from .jury import run_jury
 from .models import Claim, ClaimResult, ClaimType, DecisionPath, Verdict
@@ -59,7 +60,11 @@ def fetch_pages(ctx: "Context", claim: Claim, target: DocsTarget, notes: list[st
         hits = [h for h in ctx.tavily.search(query, target.domains) if _on_domain(h.url, target.domains)]
         if not hits:
             return []
-        top = _prefer_english(hits)[:TOP_PAGES]
+        claimed_version = claim.version or claim.since_version
+        top = order_and_dedupe(_prefer_english(hits), claimed_version)[:TOP_PAGES]
+        note = only_old_versions_note([h.url for h in top], claimed_version)
+        if note:
+            notes.append(note)
         extracted, failed = ctx.tavily.extract([h.url for h in top])  # whole pages, headings kept
         texts = {p.url.rstrip("/"): p.text for p in extracted}
         for h in top:

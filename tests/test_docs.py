@@ -27,6 +27,18 @@ def test_domain_for_stdlib_and_curated_vendors():
     assert resolve_docs(ctx.http, rm).domains == ["nodejs.org"]
 
 
+def test_stated_runtime_wins_for_javascript_globals():
+    # bench d14: Node's global fetch is documented on nodejs.org, the browser's on MDN.
+    ctx = fixture_context()
+    node = claim("api_behavior", "The global fetch() in Node.js has been stable since v18.0.0.",
+                 symbol="fetch()", since_version="v18.0.0", subject="Node.js")
+    assert resolve_docs(ctx.http, node).domains == ["nodejs.org"]
+    browser = node.model_copy(update={"subject": "browser"})
+    assert resolve_docs(ctx.http, browser).domains == ["developer.mozilla.org"]
+    unstated = node.model_copy(update={"subject": None, "statement": "fetch() returns a Promise.", "source_sentence": "fetch() returns a Promise."})
+    assert resolve_docs(ctx.http, unstated).domains == ["developer.mozilla.org"]
+
+
 def test_no_documentation_source_is_unverifiable_without_calls():
     ctx = fixture_context(llm=FakeLLM({}))
     vague = claim("other_external", "Most teams prefer httpx over requests these days.")

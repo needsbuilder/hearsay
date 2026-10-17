@@ -55,3 +55,13 @@ def test_find_quote_prefers_named_passage_and_reports_real_location():
 def test_normalize_and_display():
     assert normalize("a\u00a0b\u2014c") == "a b-c"
     assert display_quote("It was [removed in 3.12](../x.html) after") == "It was removed in 3.12 after"
+
+
+def test_single_and_double_quote_marks_are_the_same_character():
+    evidence = 'Call it with timeout=None to wait forever, or use the value "connect" for the first phase.'
+    assert quote_problem("or use the value 'connect' for the first phase", evidence) is None
+    assert quote_problem("or use the value \u2018connect\u2019 for the first phase", evidence) is None
+    assert quote_problem("or use the value \u201cconnect\u201d for the first phase", evidence) is None
+    # nothing fuzzier: other characters still have to match
+    assert quote_problem("or use the value `connect` for the first phases", evidence) is not None
+    assert quote_problem("or use the value (connect) for the first phase", evidence) is not None
