@@ -337,3 +337,11 @@ def test_templates_and_static_files_use_no_external_resources():
         text = path.read_text()
         assert not re.search(r"(src|href)=\"https?://", text), path
         assert "@import" not in text and "\u2014" not in text, path
+
+
+def test_backtick_spans_become_code_and_everything_else_is_escaped():
+    from hearsay.web.views import code_spans
+
+    assert str(code_spans("`fs.rm` supports `recursive`")) == "<code>fs.rm</code> supports <code>recursive</code>"
+    assert str(code_spans("`<b>x</b>` & <i>")) == "<code>&lt;b&gt;x&lt;/b&gt;</code> &amp; &lt;i&gt;"
+    assert str(code_spans(None)) == ""

@@ -3,8 +3,11 @@ its passage, and each judge's vote with the reason it was kept or discarded."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
+
+from markupsafe import Markup, escape
 
 from ..models import ClaimResult, DecisionPath, JudgeVote, Passage, Report, Verdict
 from ..quotes import normalize
@@ -75,6 +78,15 @@ def safe_url(url: str | None) -> str | None:
         return None
     scheme = urlparse(url).scheme.lower()
     return url if scheme in ("http", "https") else None
+
+
+_TICKS = re.compile(r"`([^`\n]+)`")
+
+
+def code_spans(text: str | None) -> Markup:
+    """Escape the text, then show `backtick spans` as <code>. Nothing else is interpreted."""
+    escaped = str(escape(text or ""))
+    return Markup(_TICKS.sub(r"<code>\1</code>", escaped))
 
 
 def _trim(q: str) -> str:

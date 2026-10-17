@@ -34,7 +34,7 @@ from ..models import Report, Usage
 from ..pipeline import Context, check
 from .demo import BUNDLE_PATH, Bundle, Example, LayeredCache, empty_bundle, load_bundle, normalize_input
 from .limits import BodySizeLimit, DailyCap, DemoTavily, Gate, RateLimiter
-from .views import PATH_HELP, PATH_LABEL, VERDICT_LABEL, report_view, safe_url
+from .views import PATH_HELP, PATH_LABEL, VERDICT_LABEL, code_spans, report_view, safe_url
 
 log = logging.getLogger("hearsay.web")
 
@@ -281,6 +281,7 @@ def _templates() -> Environment:
         lstrip_blocks=True,
     )
     env.filters["safe_url"] = safe_url
+    env.filters["code_spans"] = code_spans
     env.filters["thousands"] = lambda n: f"{n:,}"
     env.globals.update(VERDICT_LABEL=VERDICT_LABEL, PATH_LABEL=PATH_LABEL, PATH_HELP=PATH_HELP)
     return env

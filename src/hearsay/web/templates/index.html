@@ -109,7 +109,7 @@
     <nav aria-label="Claims in this report">
       <ol class="claim-index">
         {% for c in claims %}
-        <li><a href="#claim-{{ c.result.claim.id }}"><span class="badge v-{{ c.result.verdict.value }}">{{ c.verdict_label }}</span> <span class="index-text">{{ c.result.claim.statement }}</span> <span class="path-tag">{{ c.path_label }}</span></a></li>
+        <li><a href="#claim-{{ c.result.claim.id }}"><span class="badge v-{{ c.result.verdict.value }}">{{ c.verdict_label }}</span> <span class="index-text">{{ c.result.claim.statement|code_spans }}</span> <span class="path-tag">{{ c.path_label }}</span></a></li>
         {% endfor %}
       </ol>
     </nav>
@@ -122,10 +122,10 @@
         <span class="path-tag" title="{{ c.path_help }}">Decided by: {{ c.path_label }}</span>
         <code class="ctype">{{ r.claim.type.value }}</code>
       </div>
-      <h3 id="claim-{{ r.claim.id }}-title"><span class="cid">{{ r.claim.id }}</span> {{ r.claim.statement }}</h3>
+      <h3 id="claim-{{ r.claim.id }}-title"><span class="cid">{{ r.claim.id }}</span> {{ r.claim.statement|code_spans }}</h3>
 
-      <p class="said"><span class="label">Said in the input</span> {{ r.claim.source_sentence }}</p>
-      {% if r.reason %}<p class="reason">{{ r.reason }}</p>{% endif %}
+      <p class="said"><span class="label">Said in the input</span> {{ r.claim.source_sentence|code_spans }}</p>
+      {% if r.reason %}<p class="reason">{{ r.reason|code_spans }}</p>{% endif %}
 
       {% if c.quote %}
       <figure class="quote{% if c.field_quote %} quote-field{% endif %}">
@@ -161,7 +161,7 @@
           </dl>
           {% if v.discarded %}<p class="why"><span class="label">Why the vote did not count as answered</span> {{ v.discarded }}</p>{% endif %}
           {% if v.quote %}<blockquote class="vote-quote">{{ v.quote }}</blockquote>{% endif %}
-          {% if v.reasoning %}<p class="reasoning"><span class="label">Reasoning</span> {{ v.reasoning }}</p>{% endif %}
+          {% if v.reasoning %}<p class="reasoning"><span class="label">Reasoning</span> {{ v.reasoning|code_spans }}</p>{% endif %}
         </li>
         {% endfor %}
       </ol>
