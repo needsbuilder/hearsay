@@ -1,0 +1,135 @@
+{
+  "run_at": "2026-10-17T11:21:26",
+  "hearsay_version": "0.1.0",
+  "dataset": "bench/claims.jsonl",
+  "dataset_sha256": "c35bea6196bf1f925f14903b272e14af7e4ab26e9523be494a5aae793b050dd3",
+  "n_claims": 3,
+  "selection": {
+    "part": null,
+    "ids": "d01,d16,d26",
+    "limit": null
+  },
+  "configuration": {
+    "config": "single",
+    "extraction": "model",
+    "single_model": "qwen2.5:3b",
+    "llm_base_url": "http://localhost:11434/v1",
+    "extract_model": "qwen2.5:7b",
+    "judge_models": [
+      "qwen2.5:3b"
+    ],
+    "adjudicator_model": null,
+    "nemotron_on_token_factory": false
+  },
+  "overall": {
+    "n": 3,
+    "correct": 2,
+    "accuracy": 0.667,
+    "abstained": 1,
+    "wrong": 0,
+    "overclaimed": 0,
+    "decisive": 2,
+    "decisive_precision": 1.0
+  },
+  "by_label": {
+    "supported": {
+      "n": 3,
+      "correct": 2,
+      "accuracy": 0.667,
+      "abstained": 1,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 2,
+      "decisive_precision": 1.0
+    }
+  },
+  "by_type": {
+    "api_behavior": {
+      "n": 1,
+      "correct": 1,
+      "accuracy": 1.0,
+      "abstained": 0,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 1,
+      "decisive_precision": 1.0
+    },
+    "deprecated": {
+      "n": 1,
+      "correct": 1,
+      "accuracy": 1.0,
+      "abstained": 0,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 1,
+      "decisive_precision": 1.0
+    },
+    "other_external": {
+      "n": 1,
+      "correct": 0,
+      "accuracy": 0.0,
+      "abstained": 1,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 0,
+      "decisive_precision": null
+    }
+  },
+  "by_route": {
+    "docs": {
+      "n": 3,
+      "correct": 2,
+      "accuracy": 0.667,
+      "abstained": 1,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 2,
+      "decisive_precision": 1.0
+    }
+  },
+  "by_path": {
+    "jury": {
+      "n": 3,
+      "correct": 2,
+      "accuracy": 0.667,
+      "abstained": 1,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 2,
+      "decisive_precision": 1.0
+    }
+  },
+  "confusion": {
+    "supported": {
+      "supported": 2,
+      "unverifiable": 1
+    }
+  },
+  "cost": {
+    "http_requests": 0,
+    "http_cache_hits": 0,
+    "tavily_calls": 0,
+    "tavily_cache_hits": 6,
+    "llm_calls": 0,
+    "llm_cache_hits": 6,
+    "tokens_this_run": {},
+    "tokens_replayed_from_cache": {
+      "prompt_tokens": 7063,
+      "completion_tokens": 631,
+      "total_tokens": 7694,
+      "calls_with_usage": 6
+    },
+    "note": "tavily_calls and llm_calls are uncached calls made in this run; tokens are what the API reported (none for servers that do not report usage); replayed tokens are what the cached answers cost when made."
+  },
+  "infra_problems": [],
+  "not_correct": [
+    {
+      "id": "d26",
+      "label": "supported",
+      "predicted": "unverifiable",
+      "outcome": "abstained",
+      "path": "jury",
+      "reason": "The judges found nothing in the passages that settles the claim."
+    }
+  ]
+}

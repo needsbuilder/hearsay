@@ -1,0 +1,241 @@
+{
+  "run_at": "2026-10-17T11:24:11",
+  "hearsay_version": "0.1.0",
+  "dataset": "bench/claims.jsonl",
+  "dataset_sha256": "c35bea6196bf1f925f14903b272e14af7e4ab26e9523be494a5aae793b050dd3",
+  "n_claims": 23,
+  "selection": {
+    "part": "registry",
+    "ids": null,
+    "limit": null
+  },
+  "configuration": {
+    "config": "no-llm",
+    "extraction": "patterns"
+  },
+  "overall": {
+    "n": 23,
+    "correct": 18,
+    "accuracy": 0.783,
+    "abstained": 2,
+    "wrong": 2,
+    "overclaimed": 1,
+    "decisive": 21,
+    "decisive_precision": 0.857
+  },
+  "by_label": {
+    "contradicted": {
+      "n": 11,
+      "correct": 9,
+      "accuracy": 0.818,
+      "abstained": 2,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 9,
+      "decisive_precision": 1.0
+    },
+    "supported": {
+      "n": 11,
+      "correct": 9,
+      "accuracy": 0.818,
+      "abstained": 0,
+      "wrong": 2,
+      "overclaimed": 0,
+      "decisive": 11,
+      "decisive_precision": 0.818
+    },
+    "unverifiable": {
+      "n": 1,
+      "correct": 0,
+      "accuracy": 0.0,
+      "abstained": 0,
+      "wrong": 0,
+      "overclaimed": 1,
+      "decisive": 1,
+      "decisive_precision": 0.0
+    }
+  },
+  "by_type": {
+    "affected_by_vulnerability": {
+      "n": 4,
+      "correct": 1,
+      "accuracy": 0.25,
+      "abstained": 0,
+      "wrong": 2,
+      "overclaimed": 1,
+      "decisive": 4,
+      "decisive_precision": 0.25
+    },
+    "deprecated": {
+      "n": 2,
+      "correct": 1,
+      "accuracy": 0.5,
+      "abstained": 1,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 1,
+      "decisive_precision": 1.0
+    },
+    "fixes_vulnerability": {
+      "n": 7,
+      "correct": 6,
+      "accuracy": 0.857,
+      "abstained": 1,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 6,
+      "decisive_precision": 1.0
+    },
+    "license_is": {
+      "n": 3,
+      "correct": 3,
+      "accuracy": 1.0,
+      "abstained": 0,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 3,
+      "decisive_precision": 1.0
+    },
+    "package_exists": {
+      "n": 3,
+      "correct": 3,
+      "accuracy": 1.0,
+      "abstained": 0,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 3,
+      "decisive_precision": 1.0
+    },
+    "version_exists": {
+      "n": 4,
+      "correct": 4,
+      "accuracy": 1.0,
+      "abstained": 0,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 4,
+      "decisive_precision": 1.0
+    }
+  },
+  "by_route": {
+    "advisory": {
+      "n": 11,
+      "correct": 7,
+      "accuracy": 0.636,
+      "abstained": 1,
+      "wrong": 2,
+      "overclaimed": 1,
+      "decisive": 10,
+      "decisive_precision": 0.7
+    },
+    "registry": {
+      "n": 12,
+      "correct": 11,
+      "accuracy": 0.917,
+      "abstained": 1,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 11,
+      "decisive_precision": 1.0
+    }
+  },
+  "by_path": {
+    "advisory": {
+      "n": 10,
+      "correct": 7,
+      "accuracy": 0.7,
+      "abstained": 0,
+      "wrong": 2,
+      "overclaimed": 1,
+      "decisive": 10,
+      "decisive_precision": 0.7
+    },
+    "none": {
+      "n": 2,
+      "correct": 0,
+      "accuracy": 0.0,
+      "abstained": 2,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 0,
+      "decisive_precision": null
+    },
+    "registry": {
+      "n": 11,
+      "correct": 11,
+      "accuracy": 1.0,
+      "abstained": 0,
+      "wrong": 0,
+      "overclaimed": 0,
+      "decisive": 11,
+      "decisive_precision": 1.0
+    }
+  },
+  "confusion": {
+    "contradicted": {
+      "contradicted": 9,
+      "unverifiable": 2
+    },
+    "supported": {
+      "supported": 9,
+      "contradicted": 2
+    },
+    "unverifiable": {
+      "contradicted": 1
+    }
+  },
+  "cost": {
+    "http_requests": 0,
+    "http_cache_hits": 43,
+    "tavily_calls": 0,
+    "tavily_cache_hits": 0,
+    "llm_calls": 0,
+    "llm_cache_hits": 0,
+    "tokens_this_run": {},
+    "tokens_replayed_from_cache": {},
+    "note": "tavily_calls and llm_calls are uncached calls made in this run; tokens are what the API reported (none for servers that do not report usage); replayed tokens are what the cached answers cost when made."
+  },
+  "infra_problems": [],
+  "not_correct": [
+    {
+      "id": "r13",
+      "label": "supported",
+      "predicted": "contradicted",
+      "outcome": "wrong",
+      "path": "advisory",
+      "reason": "lodash 4.17.21 is outside every affected range of CVE-2026-4800."
+    },
+    {
+      "id": "r16",
+      "label": "contradicted",
+      "predicted": "unverifiable",
+      "outcome": "abstained",
+      "path": "none",
+      "reason": "OSV has no record CVE-2022-23529."
+    },
+    {
+      "id": "r21",
+      "label": "contradicted",
+      "predicted": "unverifiable",
+      "outcome": "abstained",
+      "path": "none",
+      "reason": "Tavily is not configured (TAVILY_API_KEY)."
+    },
+    {
+      "id": "r22",
+      "label": "supported",
+      "predicted": "contradicted",
+      "outcome": "wrong",
+      "path": "advisory",
+      "reason": "urllib3 1.26.17 is outside every affected range of CVE-2023-43804."
+    },
+    {
+      "id": "u01",
+      "label": "unverifiable",
+      "predicted": "contradicted",
+      "outcome": "overclaimed",
+      "path": "advisory",
+      "reason": "Werkzeug 1.0.1 is outside every affected range of CVE-2023-46136."
+    }
+  ]
+}
