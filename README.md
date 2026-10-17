@@ -11,7 +11,7 @@ Hearsay is an entry for the NVIDIA x Nebius Global AI Hackathon (track: Coding a
 - The model stages (claim extraction and the jury) are built for **Nebius Token Factory** (OpenAI-compatible API, `https://api.tokenfactory.nebius.com/v1/`) with **NVIDIA Nemotron** models. **The Token Factory configuration is pending**: the API key has not been issued yet, so the model ids in `.env.example` are placeholders. They will be filled in from `GET /v1/models` once the key exists. The real jury uses distinct Nemotron models.
 - Until then, the model stages were developed against a local OpenAI-compatible server (Ollama with `qwen2.5:7b` and `qwen2.5:3b`, see `dev/ollama.env`). This is a development stand-in only. The example outputs in `examples/` were produced with it, and the notes below say what it got right and wrong.
 - The registry, advisory and Tavily paths are complete and were run against the live services.
-- Delivery: a web demo with a JSON API, an MCP server for coding agents, a GitHub Action, and Docker and Render files for the demo. The demo is not deployed yet and the action has not run on GitHub yet (see those sections for how each was tested).
+- Delivery: a web demo with a JSON API, an MCP server for coding agents, a GitHub Action, and Docker and Render files for the demo. The demo runs at https://hearsay-w4na.onrender.com (a free instance: the first request after it has been idle can take about a minute). Until the Token Factory settings are added there, live checks on it use pattern extraction and the registry and advisory paths only; the two bundled examples replay recorded runs. The action has not run on GitHub yet.
 
 ## What it checks
 
